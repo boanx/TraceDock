@@ -20,12 +20,11 @@ VERİ YÜKLEME VE TDMS İŞLEME
 • TDMS dönüşümünde aynı dosyanın kanalları en yüksek kanal hızında eşitlenerek CSV'ye kaydedilir. Kayıt konumunu seçebilirsiniz. Oluşan veri kümesi diğer CSV kaynaklarından bağımsızdır; zaman bilgileri aynı tablodan değiştirilebilir.
 
 KANAL VE GRAFİK ARAÇLARI
-• Kanallar dosya adına göre gruplanır. Kutucuğa tıklayarak veya boşluk tuşuyla zaman çizelgesine eklenecek kanalları seçin. Seçim, mevcut grafiği değiştirmez. Dosya/Kanal sütununda bir satıra sağ tıklayarak “Mevcut satıra ekle” veya “Yeni satıra ekle” seçin. Dosya satırı bütün kanalları, kanal satırı yalnızca o kanalı ekler.
-• Dosya veya kanal adına çift tıklayarak yeniden adlandırın. “Çarpan” hücresine çift tıklayarak dosyanın tüm verilerine ya da tek kanala çarpan uygulayın. Dosya çarpanı ile kanal çarpanı birlikte çarpılır. Arama kutusu dosya, kanal ve etiketlerde arar.
+• Kanallar dosya adına göre gruplanır. Kutucuğa tıklayarak veya boşluk tuşuyla zaman çizelgesine eklenecek kanalları seçin. Seçim, mevcut grafiği değiştirmez. Dosya/Kanal sütununda bir satıra sağ tıklayarak “Mevcut satıra ekle” veya “Yeni satıra ekle” seçin. Dosya satırı yalnızca o dosyanın işaretli kanallarını, kanal satırı yalnızca o kanalı ekler.
+• Dosya veya kanal adına çift tıklayarak yeniden adlandırın. “Çarpan” hücresine çift tıklayarak dosyanın tüm verilerine ya da tek kanala çarpan uygulayın. Dosya çarpanı ile kanal çarpanı birlikte çarpılır. Arama kutusu dosya ve kanal adlarında arar.
 • Zaman çizelgesi geçen süre ekseninde gösterilir; grafikte gösterilecek kanal sayısını 12, 30, 100 veya tümü yapabilirsiniz.
 • Grafik üzerinde sağ sürükleme görünümü kaydırır; sol sürükleme veya Shift+sağ sürükleme span seçer. Tekerlek X/Y yakınlaştırır; orta tuş sürüklemesi eksenleri bağımsız yakınlaştırır.
 • Bir eğriye sol tıklayıp kanal başına en fazla 5 probe ekleyin. Probe üzerinde sağ tıkla etiketini açıp kapatın; sol tıkla probe'u kaldırın. İstatistik ve probe tabloları alt sekmelerde gösterilir ve sıralanabilir.
-• Kanal etiketleri ekleyip seçili kanallara atayın. Etiketleri filtreleme ve JSON config kaydet/yükleme desteklenir.
 
 DIŞA AKTARMA
 • “Grafik CSV” span seçiliyse span'i, değilse görünür X aralığını dışa aktarır.
@@ -58,13 +57,13 @@ PANEL YERLEŞİMİ
 
 
 SOL PANELİN TAMAMINI KAYDIRMA
-• Veri dosyaları, etiketler ve kanalların bulunduğu sol panel, yüksekliği veya genişliği yetmediğinde bütünüyle kaydırılabilir. Gerekli olduğunda dış kenarında dikey, altında yatay kaydırma çubuğu görünür.
+• Veri dosyaları ve kanalların bulunduğu sol panel, yüksekliği veya genişliği yetmediğinde bütünüyle kaydırılabilir. Gerekli olduğunda dış kenarında dikey, altında yatay kaydırma çubuğu görünür.
 • Panel üzerinde fare tekerleği dikey, Shift+tekerlek yatay kaydırır. Dosya veya kanal listesinin üzerindeyken önce liste kayar; listenin sonuna gelince dış panel kaymaya devam eder.
 • Tab tuşuyla ekran dışında kalan bir alana geçildiğinde o alan otomatik görünür hale getirilir. Panelin genişliği veya pencere boyutu değiştiğinde kaydırma alanı yeniden hesaplanır.
 
 MARKA GÜNCELLEMESİ
 • Uygulama adı TraceDock, simgesi C tasarımıdır. Yeni sürümü TraceDock.exe ile açın.
-• Önceki StrainLab etiket ayarları, TraceDock ayarı henüz yoksa otomatik okunur. Eski JSON config dosyaları da yüklenebilir.
+• Görünüm ayarları JSON biçiminde kaydedilip yüklenebilir.
 
 
 LIQUID GLASS GÖRÜNÜMÜ
@@ -87,4 +86,10 @@ GRAFİK FARE TUŞLARI
 Hazırlayan: Ahmet Yusuf Ozyurt
 
 GRAFİK LEJANTI
-• Grafik araç çubuğundaki “Lejantı göster” kutusuyla eğri adlarını açıp kapatabilirsiniz. Yakınlaştırma, prob ve yeniden çizim sırasında tercih korunur; PNG çıktısı da aynı görünümü kullanır. Config kaydet/yükle bu tercihi de saklar.
+• Grafik araç çubuğundaki “Lejantı göster” kutusuyla eğri adlarını açıp kapatabilirsiniz. Yakınlaştırma, prob ve yeniden çizim sırasında tercih korunur; PNG çıktısı da aynı görünümü kullanır. Ayarları kaydet/yükle bu tercihi de saklar.
+
+TOPLU KANAL SEÇİMİ
+• Bir kanala tıklayıp Shift basılıyken başka bir kanala tıklayarak aralığı seçin. Ctrl+tık ile ayrı kanalları seçime ekleyip çıkarın.
+• Birden fazla satır seçiliyken kutucuğa tıklamak bütün seçilenlerin kutularını aynı duruma getirir. Boşluk tuşu, “Seçilenleri işaretle” ve “İşaretleri kaldır” düğmeleri de toplu işlem yapar. İşaretli, işaretsiz ve kısmen işaretli dosyalar farklı kutu durumlarıyla gösterilir.
+• Dosya satırını sağ tıkla eklemek yalnızca o dosya altındaki işaretli kanalları ekler. İşaretli kanal yoksa ekleme seçenekleri kapalıdır. “Tümünü sırala” da dosyaların yalnızca işaretli kanallarını kullanır.
+• Kanal gruplama etiketi ekleme/atama/filtreleme kaldırıldı. Prob değer etiketleri bu değişiklikten bağımsızdır.

@@ -250,7 +250,7 @@ def parse_text_file(path,progress=None,cancel=None,kind='csv',pool=None,plan=Non
         if invalid_times:warning=f'{invalid_times} zaman damgası çözülemedi. Örnekler korundu; Hz veya süreyi düzenleyin.'
     else:x=np.frombuffer(clock,dtype=float)
     rate=common or ((count-1)/(x[-1]-x[0]) if count>1 and x[-1]>x[0] else 1.0)
-    return {'name':Path(path).name,'path':str(path),'source_kind':kind,'xname':layout['header'][layout['time_index']] if layout['time_index'] is not None else 'time','x':x,'x_is_date':date,'channels':parsed,'units':dict(zip(names,metadata.get('unit',['']*len(names)))),'tags':{},'ids':dict(zip(names,metadata.get('id',names))),'grid_rate':rate,'_base_rate':rate,'multipliers':{name:1.0 for name in parsed},'_base_x':x,'_base_channels':dict(parsed),'timing_warning':warning,'reader_workers':len(pids),'reader_pids':sorted(pids)}
+    return {'name':Path(path).name,'path':str(path),'source_kind':kind,'xname':layout['header'][layout['time_index']] if layout['time_index'] is not None else 'time','x':x,'x_is_date':date,'channels':parsed,'units':dict(zip(names,metadata.get('unit',['']*len(names)))),'ids':dict(zip(names,metadata.get('id',names))),'grid_rate':rate,'_base_rate':rate,'multipliers':{name:1.0 for name in parsed},'_base_x':x,'_base_channels':dict(parsed),'timing_warning':warning,'reader_workers':len(pids),'reader_pids':sorted(pids)}
 
 def parse_exlab(path,progress=None,cancel=None):return parse_text_file(path,progress,cancel,'csv')
 def parse_strain(path,progress=None,cancel=None):return parse_text_file(path,progress,cancel,'strain')
@@ -416,7 +416,7 @@ def elapsed_text(seconds):
 class TraceDock(tk.Tk):
  def __init__(self):
     super().__init__(); self.title('TraceDock'); window_width=min(1500,max(1000,self.winfo_screenwidth()-60));window_height=min(920,max(620,self.winfo_screenheight()-100));self.geometry(f'{window_width}x{window_height}');self.minsize(min(1240,window_width),min(720,window_height)); self.configure(bg='#e8eff5')
-    self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Kanal adına göre');self.datasets=[]; self.active=0; self.selected=set(); self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None; self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}; self.tags=[]
+    self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Kanal adına göre');self.datasets=[]; self.active=0; self.selected=set();self._tree_anchor=None; self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None; self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}
     icon_path=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))/'tracedock.ico'
     if icon_path.exists():
       try:self.iconbitmap(str(icon_path))
@@ -438,9 +438,8 @@ class TraceDock(tk.Tk):
     top=tk.Frame(self,bg='#e8eff5',height=58); top.pack(fill='x',padx=18);self._add_brand_logo(top); tk.Label(top,text='TraceDock',font=('Segoe UI',18,'bold'),fg='#007f85',bg='#e8eff5').pack(side='left',pady=12); self.status=tk.StringVar(value='Çevrimdışı • veriler bilgisayarınızda kalır'); tk.Label(top,textvariable=self.status,fg='#60758a',bg='#e8eff5').pack(side='right')
     self.workarea=tk.PanedWindow(self,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.workarea.pack(fill='both',expand=True,padx=14,pady=(0,14));body=tk.PanedWindow(self.workarea,orient='horizontal',bg='#d9e4ed',sashwidth=5,bd=0);self.workarea.add(body,minsize=380,stretch='always'); sidebar_host=tk.Frame(body,bg='#f4f8fb',width=520);right=tk.Frame(body,bg='#f4f8fb');body.add(sidebar_host,minsize=350);body.add(right,minsize=620);sidebar_host.configure(highlightthickness=1,highlightbackground='#ffffff');right.configure(highlightthickness=1,highlightbackground='#ffffff');left=self._build_scrollable_sidebar(sidebar_host)
     self._panel_title(left,'VERİ DOSYALARI');self._button(left,'Strain Gauge dosyası ekle',self.add_strain).pack(fill='x',padx=10,pady=(0,5)); bar=tk.Frame(left,bg='#f4f8fb'); bar.pack(fill='x',padx=10); self._button(bar,'CSV ekle',self.add_csv).pack(side='left',fill='x',expand=True); self._button(bar,'TDMS ekle',self.add_tdms).pack(side='left',fill='x',expand=True,padx=(5,0)); self._button(bar,'Kaldır',self.remove_file).pack(side='left',padx=(6,0)); self.filelist=tk.Listbox(left,exportselection=False,bg='#ffffff',fg='#203449',selectbackground='#d7efee',selectforeground='#203449',relief='flat',height=5,highlightthickness=0); self.filelist.pack(fill='x',padx=10,pady=8); self.filelist.bind('<<ListboxSelect>>',self.switch_file);self.filelist.bind('<Double-Button-1>',self.rename_dataset);self.filelist.bind('<Button-3>',self.edit_dataset_multiplier)
-    self._panel_title(left,'ETİKETLER'); row=tk.Frame(left,bg='#f4f8fb'); row.pack(fill='x',padx=10); self.tag_entry=ttk.Entry(row); self.tag_entry.pack(side='left',fill='x',expand=True); self._button(row,'Ekle',self.add_tag).pack(side='left',padx=(5,0)); self.tagchips=tk.Label(left,text='Henüz etiket yok',fg='#60758a',bg='#f4f8fb',anchor='w',wraplength=270,justify='left'); self.tagchips.pack(fill='x',padx=10,pady=5)
-    row=tk.Frame(left,bg='#f4f8fb'); row.pack(fill='x',padx=10); self.assign_combo=ttk.Combobox(row,state='readonly',values=[]); self.assign_combo.pack(side='left',fill='x',expand=True); self._button(row,'Seçililere ata',self.assign_tag).pack(side='left',padx=(5,0)); row=tk.Frame(left,bg='#f4f8fb'); row.pack(fill='x',padx=10,pady=(3,6)); self._button(row,'Config kaydet',self.save_config).pack(side='left',fill='x',expand=True); self._button(row,'Config yükle',self.load_config_dialog).pack(side='left',fill='x',expand=True,padx=(6,0))
-    self._panel_title(left,'KANALLAR • DOSYAYA GÖRE'); self.filter=tk.StringVar(); ent=ttk.Entry(left,textvariable=self.filter); ent.pack(fill='x',padx=10,pady=(0,5)); ent.insert(0,''); ent.bind('<KeyRelease>',lambda e:self.render_channels()); self.chlist=tk.Frame(left,bg='#f4f8fb'); self.chlist.pack(fill='both',expand=True,padx=8,pady=(0,8));tk.Label(left,text='Çift tık: ad / Hz / süre / çarpan • Kutucuk: eklenecek kanalları seç\nSüre = örnek sayısı / Hz. Süre saniye veya HH:MM:SS.SSSS girilir.',fg='#60758a',bg='#f4f8fb',justify='left',anchor='w').pack(fill='x',padx=10,pady=(0,8))
+    row=tk.Frame(left,bg='#f4f8fb');row.pack(fill='x',padx=10,pady=(3,6));self._button(row,'Ayarları kaydet',self.save_config).pack(side='left',fill='x',expand=True);self._button(row,'Ayarları yükle',self.load_config_dialog).pack(side='left',fill='x',expand=True,padx=(6,0))
+    self._panel_title(left,'KANALLAR • DOSYAYA GÖRE'); self.filter=tk.StringVar(); ent=ttk.Entry(left,textvariable=self.filter); ent.pack(fill='x',padx=10,pady=(0,5)); ent.insert(0,''); ent.bind('<KeyRelease>',lambda e:self.render_channels());selectionbar=tk.Frame(left,bg='#f4f8fb');selectionbar.pack(fill='x',padx=10,pady=(0,5));self._button(selectionbar,'Seçilenleri işaretle',lambda:self._set_channel_checks(True)).pack(side='left',fill='x',expand=True);self._button(selectionbar,'İşaretleri kaldır',lambda:self._set_channel_checks(False)).pack(side='left',fill='x',expand=True,padx=(6,0)); self.chlist=tk.Frame(left,bg='#f4f8fb'); self.chlist.pack(fill='both',expand=True,padx=8,pady=(0,8));tk.Label(left,text='Shift+tık: kanal aralığı • Ctrl+tık: çoklu seçim\nBoşluk / kutucuk: toplu aç-kapat • Çift tık: ad / Hz / süre / çarpan',fg='#60758a',bg='#f4f8fb',justify='left',anchor='w').pack(fill='x',padx=10,pady=(0,8))
     toolbar=tk.Frame(right,bg='#f4f8fb');toolbar.pack(fill='x',padx=12,pady=(8,4));bar=tk.Frame(toolbar,bg='#f4f8fb');bar.pack(fill='x');tk.Label(bar,text='X ekseni',fg='#526c82',bg='#f4f8fb').pack(side='left');self.xcombo=ttk.Combobox(bar,state='readonly',width=16,values=[]);self.xcombo.pack(side='left',padx=(5,8));self.xcombo.bind('<<ComboboxSelected>>',lambda e:self.redraw());tk.Label(bar,text='Eğri',fg='#526c82',bg='#f4f8fb').pack(side='left');self.limit=ttk.Combobox(bar,state='readonly',width=6,values=['12','30','100','Tümü']);self.limit.set('Tümü');self.limit.pack(side='left',padx=4);self.limit.bind('<<ComboboxSelected>>',lambda e:self.redraw());tk.Label(bar,text='Ondalık',fg='#526c82',bg='#f4f8fb').pack(side='left',padx=(5,2));self.decimal=ttk.Combobox(bar,state='readonly',width=3,values=('.',','));self.decimal.set('.');self.decimal.pack(side='left');self.decimal.bind('<<ComboboxSelected>>',lambda e:(self.redraw(preserve_view=True) if self.datasets else None));self._button(bar,'Tümünü göster',self.reset_zoom).pack(side='left',padx=(9,2));self._button(bar,'Seçili aralığı temizle',self.clear_span).pack(side='left',padx=2);self._button(bar,'Probe temizle',self.clear_probes).pack(side='left',padx=2)
     bar2=tk.Frame(toolbar,bg='#f4f8fb');bar2.pack(fill='x',pady=(4,0));self._button(bar2,'Grafik CSV',self.export_graph_csv).pack(side='left',padx=(0,4));self._button(bar2,"Seçili aralığı CSV'ye aktar",self.export_span_csv).pack(side='left',padx=4);self._button(bar2,'İstatistik CSV',self.export_stats_csv).pack(side='left',padx=4);self._button(bar2,'Grafik PNG',self.export_graph_png).pack(side='left',padx=4);self.coords=tk.StringVar(value='X = —    Y = —');tk.Label(bar2,textvariable=self.coords,fg='#203449',bg='#eef5fa',font=('Segoe UI',9,'bold'),padx=5,pady=2).pack(side='right');bar3=tk.Frame(toolbar,bg='#f4f8fb');bar3.pack(fill='x',pady=(3,0));ttk.Checkbutton(bar3,text='Lejantı göster',variable=self.legend_visible,command=self._toggle_legend).pack(side='right',padx=(8,0));tk.Label(bar3,text='Sol tık: prob ekle/sil • Sağ tık: prob etiketi • Sol sürükle: aralık • Sağ sürükle: kaydır • Tekerlek / orta tuş: zoom',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=2)
     self.graph_panels=tk.PanedWindow(right,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.graph_panels.pack(fill='both',expand=True,padx=10,pady=(0,8));plotbox=tk.Frame(self.graph_panels,bg='#f4f8fb');self.graph_panels.add(plotbox,minsize=120,stretch='always'); self.fig=Figure(figsize=(9,5),dpi=100,facecolor='#f4f8fb');self.ax=self.fig.add_subplot(111);self.ax.set_facecolor('#ffffff');self.fig.subplots_adjust(left=.09,right=.985,top=.97,bottom=.12);self.canvas=FigureCanvasTkAgg(self.fig,master=plotbox);self.canvas.get_tk_widget().pack(fill='both',expand=True);self.canvas.mpl_connect('motion_notify_event',self.on_motion);self.canvas.mpl_connect('button_press_event',self.on_press);self.canvas.mpl_connect('button_release_event',self.on_release);self.canvas.mpl_connect('scroll_event',self.on_scroll)
@@ -599,8 +598,10 @@ class TraceDock(tk.Tk):
     self._timeline_changed();self.after_idle(self._timeline_reveal_row);self.status.set(f"{d['name']} • {len(clip['channels'])} kanal → {row['name']}")
  def timeline_all(self):
     if not self.datasets:return
+    clips=[{'uid':uuid.uuid4().hex,'dataset_uid':d['uid'],'row_uid':self.timeline_row,'channels':[n for n in d['channels'] if n in d['_selected']]} for d in self.datasets if d['_selected']]
+    if not clips:self.status.set('Eklemek için en az bir kanal işaretleyin');return
     row=self.timeline_row;removed={'clip:'+c['uid'] for c in self.timeline if c.get('row_uid',self.timeline_rows[0]['uid'])==row};self.timeline=[c for c in self.timeline if c.get('row_uid',self.timeline_rows[0]['uid'])!=row]
-    clips=[{'uid':uuid.uuid4().hex,'dataset_uid':d['uid'],'row_uid':row,'channels':list(d['channels'])} for d in self.datasets];self.timeline.extend(clips);self.timeline_selected=clips[0]['uid'];self.probes={k:v for k,v in self.probes.items() if k[0] not in removed};self._timeline_fit=True;self._timeline_changed();self._timeline_reveal_row()
+    self.timeline.extend(clips);self.timeline_selected=clips[0]['uid'];self.probes={k:v for k,v in self.probes.items() if k[0] not in removed};self._timeline_fit=True;self._timeline_changed();self._timeline_reveal_row()
  def timeline_move(self,delta):
     positions=[i for i,c in enumerate(self.timeline) if c.get('row_uid',self.timeline_rows[0]['uid'])==self.timeline_row];index=next((i for i,p in enumerate(positions) if self.timeline[p]['uid']==self.timeline_selected),None)
     if index is None or not 0<=index+delta<len(positions):return
@@ -763,7 +764,7 @@ class TraceDock(tk.Tk):
       return datasets,errors
     def complete(result):
       datasets,errors=result
-      for d in datasets:self._apply_saved_tags(d);self.datasets.append(d)
+      for d in datasets:self.datasets.append(d)
       if datasets:self.active=len(self.datasets)-1;self.selected=set(datasets[-1]['_selected'])
       self.redraw_all(preserve_view=True);self.status.set(f'{len(datasets)} dosya yüklendi • özgün veriler korundu')
       if errors:messagebox.showerror('Okunamayan dosyalar','\n'.join(errors),parent=self)
@@ -858,12 +859,12 @@ class TraceDock(tk.Tk):
           name=ch['name'];values=results[name];base[name]=values;aligned[name]=values if factor==1 else ScaledValues(values,factor);ids[name]=ch['id'];units[name]=ch['unit']
         metadata=[['ID']+list(ids.values()),['Unit']+list(units.values()),['SampleRate']+rates,['Multiplier']+[number_text(v,decimal) for v in factors],['CommonRate']+[common]*len(channels)]
         series=[{'label':name,'x':clock,'y':values} for name,values in aligned.items()]
-        d={'name':Path(destination).name,'path':str(destination),'xname':'time','x':clock,'_base_x':clock,'x_is_date':False,'channels':aligned,'units':units,'tags':{},'ids':ids,'sample_rates':dict(zip(aligned,rates)),'grid_rate':common,'_base_rate':common,'multipliers':dict(zip(aligned,factors)),'_base_channels':base}
+        d={'name':Path(destination).name,'path':str(destination),'xname':'time','x':clock,'_base_x':clock,'x_is_date':False,'channels':aligned,'units':units,'ids':ids,'sample_rates':dict(zip(aligned,rates)),'grid_rate':common,'_base_rate':common,'multipliers':dict(zip(aligned,factors)),'_base_channels':base}
         prepare_dataset(d,lambda f,msg:progress(.25+.2*f,msg),cancel)
         write_series_csv(destination,series,0,float('inf'),decimal,True,lambda f,msg:progress(.45+.55*f,msg),cancel,metadata)
         return d
       def complete(d):
-        self._apply_saved_tags(d);self.datasets.append(d);self.active=len(self.datasets)-1;self.selected=set(d['_selected']);self.redraw_all(preserve_view=True);self.status.set(f'{Path(path).name} dönüştürüldü • {common:,} Hz • {row_count:,} satır');self.after_idle(self._next_tdms)
+        self.datasets.append(d);self.active=len(self.datasets)-1;self.selected=set(d['_selected']);self.redraw_all(preserve_view=True);self.status.set(f'{Path(path).name} dönüştürüldü • {common:,} Hz • {row_count:,} satır');self.after_idle(self._next_tdms)
       self._start_job('TDMS dönüştürülüyor',convert,complete,lambda msg:self.after_idle(self._next_tdms))
     self._start_job('TDMS okunuyor',read,loaded,lambda msg:self.after_idle(self._next_tdms))
 
@@ -886,52 +887,76 @@ class TraceDock(tk.Tk):
     if new and new.strip():self.datasets[self.active]['name']=new.strip();self.redraw_all()
  def render_channels(self):
     if not hasattr(self,'channel_tree'):
-      self.channel_tree=ttk.Treeview(self.chlist,columns=('rate','duration','factor'),show='tree headings',selectmode='browse')
+      self.channel_tree=ttk.Treeview(self.chlist,columns=('rate','duration','factor'),show='tree headings',selectmode='extended')
       tree=self.channel_tree;tree.tag_configure('dataset',foreground='#007f85',font=('Segoe UI',9,'bold'));tree.heading('#0',text='Dosya / kanal');tree.column('#0',width=205,minwidth=130)
       for col,label,width in [('rate','Hz',82),('duration','Süre (s)',96),('factor','Çarpan',70)]:tree.heading(col,text=label);tree.column(col,width=width,minwidth=55,anchor='e')
       sb=ttk.Scrollbar(self.chlist,orient='vertical',command=tree.yview);hs=ttk.Scrollbar(self.chlist,orient='horizontal',command=tree.xview)
       tree.configure(yscrollcommand=sb.set,xscrollcommand=hs.set);sb.pack(side='right',fill='y');hs.pack(side='bottom',fill='x');tree.pack(fill='both',expand=True)
       self._check_images={}
-      for checked in (False,True):
+      for checked in (False,True,'mixed'):
         icon=tk.PhotoImage(width=14,height=14);icon.put('#b1c7d7',to=(0,0,14,14));icon.put('#ffffff',to=(1,1,13,13))
-        if checked:
+        if checked=='mixed':icon.put('#007f85',to=(3,6,11,8))
+        elif checked:
           for x,y in [(3,6),(4,7),(5,8),(6,7),(7,6),(8,5),(9,4),(10,3)]:icon.put('#007f85',to=(x,y,x+2,y+2))
         self._check_images[checked]=icon
       tree.bind('<Button-1>',self._channel_tree_click);tree.bind('<Double-Button-1>',self._channel_tree_edit);tree.bind('<space>',self._channel_tree_space);tree.bind('<Button-3>',self._channel_tree_menu);tree.bind('<Menu>',lambda e:self._channel_tree_menu(e,True));tree.bind('<Shift-F10>',lambda e:self._channel_tree_menu(e,True))
-    tree=self.channel_tree;closed={iid for iid in tree.get_children() if not tree.item(iid,'open')};scroll=tree.yview();focus=tree.focus()
+    tree=self.channel_tree;highlighted=tree.selection();closed={iid for iid in tree.get_children() if not tree.item(iid,'open')};scroll=tree.yview();focus=tree.focus()
     for iid in tree.get_children():tree.delete(iid)
     self._tree_rows={};q=self.filter.get().casefold()
     for di,d in enumerate(self.datasets):
-      names=[name for name in d['channels'] if q in name.casefold() or q in d['name'].casefold() or q in d.get('tags',{}).get(name,'').casefold()]
+      names=[name for name in d['channels'] if q in name.casefold() or q in d['name'].casefold()]
       if not names:continue
       group='d_'+d['uid'];rates=list(d['channel_rates'].values());durations=[len(d['channels'][n])/d['channel_rates'][n] for n in d['channels']]
       def summary(values):return self._number(values[0]) if values and all(math.isclose(v,values[0],rel_tol=1e-8,abs_tol=1e-9) for v in values) else 'Karışık'
-      tree.insert('','end',iid=group,text=d['name'],values=(summary(rates),summary(durations),self._number(d.get('data_multiplier',1))),open=group not in closed,image=self._check_images[bool(d['_selected'])],tags=('dataset',))
+      tree.insert('','end',iid=group,text=d['name'],values=(summary(rates),summary(durations),self._number(d.get('data_multiplier',1))),open=group not in closed,image=self._check_images[self._channel_group_state(d)],tags=('dataset',))
       self._tree_rows[group]=(di,None)
       for ci,name in enumerate(d['channels']):
         if name not in names:continue
-        iid=f'{group}_c{ci}';rate=d['channel_rates'][name];tag=d.get('tags',{}).get(name,'');label=name+(f' [{tag}]' if tag else '')
+        iid=f'{group}_c{ci}';rate=d['channel_rates'][name];label=name
         tree.insert(group,'end',iid=iid,text=label,image=self._check_images[name in d['_selected']],values=(self._number(rate),self._number(len(d['channels'][name])/rate),self._number(d.get('multipliers',{}).get(name,1))))
         self._tree_rows[iid]=(di,name)
-    if focus in self._tree_rows:tree.focus(focus);tree.selection_set(focus)
+    if focus in self._tree_rows:tree.focus(focus)
+    tree.selection_set(tuple(iid for iid in highlighted if iid in self._tree_rows))
+    if self._tree_anchor not in self._tree_rows:self._tree_anchor=None
     if scroll:tree.yview_moveto(scroll[0])
     self._sidebar_bind_widgets(self.sidebar_content);self._schedule_sidebar_layout()
+ def _channel_group_state(self,d):
+    count=sum(name in d['_selected'] for name in d['channels'])
+    return False if count==0 else True if count==len(d['channels']) else 'mixed'
+ def _visible_channel_rows(self):
+    tree=self.channel_tree;rows=[]
+    def visit(parent=''):
+      for iid in tree.get_children(parent):
+        rows.append(iid)
+        if tree.item(iid,'open'):visit(iid)
+    visit();return rows
  def _channel_tree_click(self,event):
     tree=self.channel_tree;iid=tree.identify_row(event.y)
     if iid not in self._tree_rows:return
-    di,name=self._tree_rows[iid];self.active=di;self.selected=set(self.datasets[di]['_selected']);self.filelist.selection_clear(0,'end');self.filelist.selection_set(di);tree.focus(iid);tree.selection_set(iid)
-    if 'image' in tree.identify_element(event.x,event.y):
-      self._toggle_tree_row(iid);return 'break'
+    element=tree.identify_element(event.x,event.y)
+    if 'indicator' in element:return
+    di,name=self._tree_rows[iid];self.active=di;self.selected=set(self.datasets[di]['_selected']);self.filelist.selection_clear(0,'end');self.filelist.selection_set(di);previous_focus=tree.focus();tree.focus(iid);tree.focus_set();checkbox='image' in element;shift=bool(event.state&1);control=bool(event.state&4)
+    if shift:
+      visible=self._visible_channel_rows();anchor=self._tree_anchor if self._tree_anchor in visible else previous_focus if previous_focus in visible else iid;self._tree_anchor=anchor;a,b=sorted((visible.index(anchor),visible.index(iid)));chosen=visible[a:b+1]
+      tree.selection_set(tuple(dict.fromkeys(list(tree.selection())+chosen)) if control else tuple(chosen))
+    elif control and not checkbox:
+      if iid in tree.selection():tree.selection_remove(iid)
+      else:tree.selection_add(iid)
+      self._tree_anchor=iid
+    elif not checkbox or iid not in tree.selection():tree.selection_set(iid);self._tree_anchor=iid
+    if checkbox:self._toggle_tree_row(iid)
+    return 'break'
  def _channel_tree_menu(self,event,keyboard=False):
     tree=self.channel_tree;iid=tree.focus() if keyboard else tree.identify_row(event.y)
     if iid not in self._tree_rows or (not keyboard and tree.identify_column(event.x)!='#0'):return 'break'
-    di,name=self._tree_rows[iid];d=self.datasets[di];self.active=di;self.selected=set(d['_selected']);self.filelist.selection_clear(0,'end');self.filelist.selection_set(di);tree.focus(iid);tree.selection_set(iid)
-    names=tuple(d['channels']) if name is None else (name,);uid=d['uid'];options=dict(tearoff=False,bg='#f4f8fb',fg='#203449',activebackground='#d7efee',activeforeground='#164e58',disabledforeground='#60758a',relief='flat',borderwidth=1,font=('Segoe UI',10))
+    di,name=self._tree_rows[iid];d=self.datasets[di];self.active=di;self.selected=set(d['_selected']);self.filelist.selection_clear(0,'end');self.filelist.selection_set(di);tree.focus(iid)
+    if iid not in tree.selection():tree.selection_set(iid);self._tree_anchor=iid
+    names=tuple(n for n in d['channels'] if n in d['_selected']) if name is None else (name,);uid=d['uid'];options=dict(tearoff=False,bg='#f4f8fb',fg='#203449',activebackground='#d7efee',activeforeground='#164e58',disabledforeground='#60758a',relief='flat',borderwidth=1,font=('Segoe UI',10))
     previous=getattr(self,'_channel_menu',None)
     if previous is not None:previous.destroy()
-    menu=tk.Menu(self,**options);self._channel_menu=menu;menu.add_command(label=(d['name']+' / tüm kanallar') if name is None else name,state='disabled');menu.add_separator();rows=tk.Menu(menu,**options)
+    menu=tk.Menu(self,**options);self._channel_menu=menu;menu.add_command(label=(d['name']+f' / {len(names)} işaretli kanal') if name is None else name,state='disabled');menu.add_separator();rows=tk.Menu(menu,**options)
     for row in self.timeline_rows:rows.add_command(label=row['name']+' satırına ekle',command=lambda row_uid=row['uid']:self._timeline_add_source(uid,names,row_uid))
-    menu.add_cascade(label='Mevcut satıra ekle',menu=rows);menu.add_command(label='Yeni satıra ekle',command=lambda:self._timeline_add_source(uid,names,new_row=True))
+    menu.add_cascade(label='Mevcut satıra ekle',menu=rows,state='normal' if names else 'disabled');menu.add_command(label='Yeni satıra ekle',command=lambda:self._timeline_add_source(uid,names,new_row=True),state='normal' if names else 'disabled')
     if keyboard:
       box=tree.bbox(iid,'#0')
       if not box:return 'break'
@@ -940,16 +965,31 @@ class TraceDock(tk.Tk):
     try:menu.tk_popup(x,y)
     finally:menu.grab_release()
     return 'break'
+ def _channel_check_targets(self,iids):
+    targets={}
+    for iid in iids:
+      if iid not in self._tree_rows:continue
+      di,name=self._tree_rows[iid];d=self.datasets[di];targets.setdefault(di,set()).update(d['channels'] if name is None else (name,))
+    return targets
+ def _update_channel_checks(self):
+    for iid,(di,name) in self._tree_rows.items():
+      d=self.datasets[di];state=self._channel_group_state(d) if name is None else name in d['_selected'];self.channel_tree.item(iid,image=self._check_images[state])
+ def _set_channel_checks(self,checked=None):
+    tree=self.channel_tree;iids=tree.selection() or ((tree.focus(),) if tree.focus() in self._tree_rows else ());targets=self._channel_check_targets(iids)
+    if not targets:self.status.set('Önce kanalları seçin • Shift+tık ile bir aralık seçebilirsiniz');return
+    if checked is None:checked=not all(names<=self.datasets[di]['_selected'] for di,names in targets.items())
+    count=0
+    for di,names in targets.items():
+      selected=self.datasets[di]['_selected']
+      if checked:selected.update(names)
+      else:selected.difference_update(names)
+      count+=len(names)
+    self.selected=set(self.datasets[self.active]['_selected']);self._update_channel_checks();self.status.set(f'{count} kanal '+('işaretlendi' if checked else 'işareti kaldırıldı')+' • Grafik için zaman çizelgesine ekleyin')
  def _channel_tree_space(self,event):
-    iid=self.channel_tree.focus()
-    if iid in self._tree_rows:self._toggle_tree_row(iid)
-    return 'break'
+    self._set_channel_checks();return 'break'
  def _toggle_tree_row(self,iid):
-    di,name=self._tree_rows[iid];d=self.datasets[di];self.active=di
-    if name is None:d['_selected']=set() if d['_selected'] else set(d['channels'])
-    elif name in d['_selected']:d['_selected'].remove(name)
-    else:d['_selected'].add(name)
-    self.selected=set(d['_selected']);self.render_channels();self.status.set('Kanal seçimi güncellendi • Grafiğe eklemek için sağ tıklayın veya zaman çizelgesini kullanın')
+    di,name=self._tree_rows[iid];d=self.datasets[di];checked=self._channel_group_state(d) is not True if name is None else name not in d['_selected']
+    self._set_channel_checks(checked)
  def _channel_tree_edit(self,event):
     tree=self.channel_tree;iid=tree.identify_row(event.y);column=tree.identify_column(event.x)
     if iid not in self._tree_rows:return 'break'
@@ -1013,7 +1053,7 @@ class TraceDock(tk.Tk):
     if new is None or not new.strip() or new.strip()==old:return
     new=new.strip()
     if new in d['channels']:messagebox.showwarning('Kanal adı kullanılıyor',f'“{new}” adlı kanal zaten var.',parent=self);return
-    for field in ('channels','units','ids','_base_channels','multipliers','channel_rates','sample_rates','tags','_channel_x','_base_stats','_envelopes'):
+    for field in ('channels','units','ids','_base_channels','multipliers','channel_rates','sample_rates','_channel_x','_base_stats','_envelopes'):
       if old in d.get(field,{}):d[field]={new if key==old else key:value for key,value in d[field].items()}
     if old in d['_selected']:d['_selected'].remove(old);d['_selected'].add(new)
     for clip in self.timeline:
@@ -1031,17 +1071,8 @@ class TraceDock(tk.Tk):
     if self.datasets:
       self.filelist.selection_set(self.active);self.filelist.activate(self.active);self.selected=set(self.datasets[self.active]['_selected'])
     self._xchoices={};self.xcombo['values']=['Geçen süre'];self.xcombo.set('Geçen süre')
-    self.tagchips.config(text='  •  '.join(self.tags) if self.tags else 'Henüz etiket yok');self.assign_combo['values']=self.tags;self.render_channels();self._render_timeline();self.redraw(preserve_view=preserve_view)
+    self.render_channels();self._render_timeline();self.redraw(preserve_view=preserve_view)
 
- def add_tag(self):
-    tag=self.tag_entry.get().strip()
-    if tag and tag not in self.tags:self.tags.append(tag)
-    self.tag_entry.delete(0,'end');self.redraw_all()
- def assign_tag(self):
-    if not self.datasets or not self.assign_combo.get():return
-    for d in self.datasets:
-      for name in d['_selected']:d.setdefault('tags',{})[name]=self.assign_combo.get()
-    self.redraw_all()
  def _key_label(self,key):
     row_counts={}
     for clip,d,start,end in self._timeline_layout():
@@ -1293,33 +1324,24 @@ class TraceDock(tk.Tk):
       self.status.set(f'{len(items)} kanal istatistiği dışa aktarıldı • {Path(p).name}')
     except Exception as exc:messagebox.showerror('CSV dışa aktarılamadı',str(exc))
  def save_config(self):
-    payload={'format':'TraceDock-config-v1','view':{'legend_visible':self.legend_visible.get()},'tags':self.tags,'channel_tags':{name:tag for d in self.datasets for name,tag in d.get('tags',{}).items()},'files':{d['name']:d.get('tags',{}) for d in self.datasets}}
-    path=filedialog.asksaveasfilename(title='Config kaydet',defaultextension='.json',initialfile='tracedock-config.json',filetypes=[('JSON config','*.json')])
+    payload={'format':'TraceDock-config-v2','view':{'legend_visible':self.legend_visible.get()}}
+    path=filedialog.asksaveasfilename(title='Görünüm ayarlarını kaydet',defaultextension='.json',initialfile='tracedock-config.json',filetypes=[('JSON ayarları','*.json')])
     if not path:return
     try:
-      Path(path).write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding='utf-8')
-      CONFIG_PATH.parent.mkdir(parents=True,exist_ok=True);CONFIG_PATH.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding='utf-8')
-      self._saved_cfg=payload;self.status.set(f'Config kaydedildi: {Path(path).name}')
-    except Exception as exc:messagebox.showerror('Config kaydedilemedi',str(exc),parent=self)
+      Path(path).write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding='utf-8');CONFIG_PATH.parent.mkdir(parents=True,exist_ok=True);CONFIG_PATH.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding='utf-8');self.status.set(f'Ayarlar kaydedildi: {Path(path).name}')
+    except Exception as exc:messagebox.showerror('Ayarlar kaydedilemedi',str(exc),parent=self)
  def load_config_dialog(self):
-    path=filedialog.askopenfilename(title='Config dosyası yükle',filetypes=[('JSON config','*.json'),('Tüm dosyalar','*.*')])
+    path=filedialog.askopenfilename(title='Görünüm ayarlarını yükle',filetypes=[('JSON ayarları','*.json'),('Tüm dosyalar','*.*')])
     if not path:return
     try:
-      payload=json.loads(Path(path).read_text(encoding='utf-8-sig'));self._saved_cfg=payload;self.tags=list(dict.fromkeys(self.tags+payload.get('tags',[])));self.legend_visible.set(bool(payload.get('view',{}).get('legend_visible',self.legend_visible.get())))
-      for d in self.datasets:self._apply_saved_tags(d)
-      self.redraw_all();self.status.set(f'Config yüklendi: {Path(path).name}')
-    except Exception as exc:messagebox.showerror('Config yüklenemedi',str(exc),parent=self)
- def _apply_saved_tags(self,d):
-    cfg=getattr(self,'_saved_cfg',{});d.setdefault('tags',{}).update(cfg.get('files',{}).get(d.get('name',''),{}));channel_tags=cfg.get('channel_tags',{})
-    for name in d.get('channels',{}):
-      if name in channel_tags:d['tags'][name]=channel_tags[name]
+      payload=json.loads(Path(path).read_text(encoding='utf-8-sig'));self.legend_visible.set(bool(payload.get('view',{}).get('legend_visible',self.legend_visible.get())));self._toggle_legend();self.status.set(f'Ayarlar yüklendi: {Path(path).name}')
+    except Exception as exc:messagebox.showerror('Ayarlar yüklenemedi',str(exc),parent=self)
  def load_default_config(self):
     try:
       source=CONFIG_PATH if CONFIG_PATH.exists() else LEGACY_CONFIG_PATH
-      if source.exists():
-        self._saved_cfg=json.loads(source.read_text(encoding='utf-8-sig'));self.tags=list(self._saved_cfg.get('tags',[]));self.legend_visible.set(bool(self._saved_cfg.get('view',{}).get('legend_visible',True)))
-      else:self._saved_cfg={}
-    except Exception:self._saved_cfg={}
+      if source.exists():self.legend_visible.set(bool(json.loads(source.read_text(encoding='utf-8-sig')).get('view',{}).get('legend_visible',True)))
+    except (OSError,ValueError,AttributeError,TypeError):pass
+
 def verify_runtime_workers(report_path,input_path):
     size=os.path.getsize(input_path);plan=resource_plan(size)
     if size<32*2**20:plan.update(workers=min(4,plan['workers']),chunk_bytes=256*1024)
