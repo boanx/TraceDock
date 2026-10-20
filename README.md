@@ -45,6 +45,19 @@ Bir kanala tıklayın, **Shift** basılıyken başka bir kanala tıklayarak aral
 
 Kanal gruplama etiketleri kaldırılmıştır. Prob üzerindeki değer etiketleri kullanılmaya devam eder.
 
+### Birden fazla Y ekseni
+
+En fazla **Sol 1, Sol 2, Sağ 1 ve Sağ 2** olmak üzere dört bağımsız Y ekseni kullanılabilir.
+
+- **Y eksenleri** düğmesi: zaman çizelgesindeki kanalları seçip eksene atayın. Shift / Ctrl ile çoklu seçim desteklenir.
+- **Dosya/Kanal → sağ tık → Y eksenine ata** veya **Y ekseni** hücresine çift tık: kaynak kanalın eksenini seçin.
+- Grafikte **lejanttaki kanal adına tıklayın**: o eğriyi bir eksene atayın.
+- Aynı satırda eşleştirilen kanalın ardışık paketleri aynı eksende devam eder. Ayrı satırlardaki eğriler farklı eksenlere atanabilir.
+- Eksen üzerindeki fare tekerleği yalnızca o Y eksenini yakınlaştırır. Grafik içindeki tekerlek bütün eksenleri ortak zaman etrafında yakınlaştırır.
+- Kullanılan eksenler otomatik gösterilir; lejant kanalın eksenini belirtir. PNG bütün eksenleri içerir. CSV ölçüm değerleri dönüştürülmez.
+
+Atamalar mevcut oturum içindir. **Tümünü Sol 1’e al** ile tek eksen görünümüne dönebilirsiniz.
+
 ### Grafik fare kontrolleri
 
 | Hareket | İşlev |

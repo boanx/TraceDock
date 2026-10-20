@@ -93,3 +93,14 @@ TOPLU KANAL SEÇİMİ
 • Birden fazla satır seçiliyken kutucuğa tıklamak bütün seçilenlerin kutularını aynı duruma getirir. Boşluk tuşu, “Seçilenleri işaretle” ve “İşaretleri kaldır” düğmeleri de toplu işlem yapar. İşaretli, işaretsiz ve kısmen işaretli dosyalar farklı kutu durumlarıyla gösterilir.
 • Dosya satırını sağ tıkla eklemek yalnızca o dosya altındaki işaretli kanalları ekler. İşaretli kanal yoksa ekleme seçenekleri kapalıdır. “Tümünü sırala” da dosyaların yalnızca işaretli kanallarını kullanır.
 • Kanal gruplama etiketi ekleme/atama/filtreleme kaldırıldı. Prob değer etiketleri bu değişiklikten bağımsızdır.
+
+
+ÇOKLU Y EKSENİ
+• Ana eksen dahil solda en fazla 2, sağda en fazla 2 olmak üzere toplam 4 eksen kullanılabilir: Sol 1, Sol 2, Sağ 1, Sağ 2. Her eksen kendisine atanan verilerden bağımsız ölçeklenir.
+• “Y eksenleri” düğmesiyle zaman çizelgesindeki kanalları açın, kanal seçin, hedef ekseni belirleyip “Seçilenlere uygula”ya basın. Shift / Ctrl ile birden fazla eğri seçilebilir.
+• Lejanttaki kanal adına tıklayarak eksen atama menüsünü açabilirsiniz. Dosya/Kanal sütununun sağ tık menüsündeki “Y eksenine ata” veya kanalın “Y ekseni” hücresine çift tıklama da kullanılabilir. Dosya satırında işlem işaretli kanallara uygulanır.
+• Aynı zaman çizelgesi satırında eşleştirilen kanalın ardışık paketleri aynı Y ekseninde devam eder. Aynı verinin farklı satırlardaki kopyalarına “Y eksenleri” penceresinden farklı eksen atanabilir.
+• Kullanılmayan ek eksenler gizlenir. Her eksenin adı ve rengi ayrıdır; ortak birim varsa eksen adının yanında görünür. Lejant kanalın hangi eksende olduğunu gösterir.
+• Y ekseninin üzerinde tekerlek yalnızca o ekseni yakınlaştırır/uzaklaştırır. Grafiğin içinde tekerlek bütün eksenleri, sağ sürükleme bütün eksenlerin görünümünü kaydırır. Sol sürükleme zaman aralığı seçer.
+• Çapraz imleçte her Y ekseninin değeri okunabilir. Problar kendi kanallarının ekseninde ölçülür. PNG bütün Y eksenlerini içerir; CSV'de özgün sayısal değerler ve zaman bilgisi korunur.
+• Atamalar oturum içindir. “Tümünü Sol 1’e al” tüm eğrileri ilk eksene taşır.

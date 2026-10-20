@@ -20,6 +20,8 @@ from matplotlib.collections import LineCollection
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.ticker import FuncFormatter
 
+Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
+Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
@@ -416,7 +418,7 @@ def elapsed_text(seconds):
 class TraceDock(tk.Tk):
  def __init__(self):
     super().__init__(); self.title('TraceDock'); window_width=min(1500,max(1000,self.winfo_screenwidth()-60));window_height=min(920,max(620,self.winfo_screenheight()-100));self.geometry(f'{window_width}x{window_height}');self.minsize(min(1240,window_width),min(720,window_height)); self.configure(bg='#e8eff5')
-    self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Kanal adına göre');self.datasets=[]; self.active=0; self.selected=set();self._tree_anchor=None; self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None; self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}
+    self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Kanal adına göre');self.datasets=[]; self.active=0; self.selected=set();self._tree_anchor=None; self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None;self._channel_axes={};self._track_axes={};self._y_axes={};self._reset_axis_slots=set();self._legend_artist=None;self._legend_targets=[]; self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}
     icon_path=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))/'tracedock.ico'
     if icon_path.exists():
       try:self.iconbitmap(str(icon_path))
@@ -441,8 +443,8 @@ class TraceDock(tk.Tk):
     row=tk.Frame(left,bg='#f4f8fb');row.pack(fill='x',padx=10,pady=(3,6));self._button(row,'Ayarları kaydet',self.save_config).pack(side='left',fill='x',expand=True);self._button(row,'Ayarları yükle',self.load_config_dialog).pack(side='left',fill='x',expand=True,padx=(6,0))
     self._panel_title(left,'KANALLAR • DOSYAYA GÖRE'); self.filter=tk.StringVar(); ent=ttk.Entry(left,textvariable=self.filter); ent.pack(fill='x',padx=10,pady=(0,5)); ent.insert(0,''); ent.bind('<KeyRelease>',lambda e:self.render_channels());selectionbar=tk.Frame(left,bg='#f4f8fb');selectionbar.pack(fill='x',padx=10,pady=(0,5));self._button(selectionbar,'Seçilenleri işaretle',lambda:self._set_channel_checks(True)).pack(side='left',fill='x',expand=True);self._button(selectionbar,'İşaretleri kaldır',lambda:self._set_channel_checks(False)).pack(side='left',fill='x',expand=True,padx=(6,0)); self.chlist=tk.Frame(left,bg='#f4f8fb'); self.chlist.pack(fill='both',expand=True,padx=8,pady=(0,8));tk.Label(left,text='Shift+tık: kanal aralığı • Ctrl+tık: çoklu seçim\nBoşluk / kutucuk: toplu aç-kapat • Çift tık: ad / Hz / süre / çarpan',fg='#60758a',bg='#f4f8fb',justify='left',anchor='w').pack(fill='x',padx=10,pady=(0,8))
     toolbar=tk.Frame(right,bg='#f4f8fb');toolbar.pack(fill='x',padx=12,pady=(8,4));bar=tk.Frame(toolbar,bg='#f4f8fb');bar.pack(fill='x');tk.Label(bar,text='X ekseni',fg='#526c82',bg='#f4f8fb').pack(side='left');self.xcombo=ttk.Combobox(bar,state='readonly',width=16,values=[]);self.xcombo.pack(side='left',padx=(5,8));self.xcombo.bind('<<ComboboxSelected>>',lambda e:self.redraw());tk.Label(bar,text='Eğri',fg='#526c82',bg='#f4f8fb').pack(side='left');self.limit=ttk.Combobox(bar,state='readonly',width=6,values=['12','30','100','Tümü']);self.limit.set('Tümü');self.limit.pack(side='left',padx=4);self.limit.bind('<<ComboboxSelected>>',lambda e:self.redraw());tk.Label(bar,text='Ondalık',fg='#526c82',bg='#f4f8fb').pack(side='left',padx=(5,2));self.decimal=ttk.Combobox(bar,state='readonly',width=3,values=('.',','));self.decimal.set('.');self.decimal.pack(side='left');self.decimal.bind('<<ComboboxSelected>>',lambda e:(self.redraw(preserve_view=True) if self.datasets else None));self._button(bar,'Tümünü göster',self.reset_zoom).pack(side='left',padx=(9,2));self._button(bar,'Seçili aralığı temizle',self.clear_span).pack(side='left',padx=2);self._button(bar,'Probe temizle',self.clear_probes).pack(side='left',padx=2)
-    bar2=tk.Frame(toolbar,bg='#f4f8fb');bar2.pack(fill='x',pady=(4,0));self._button(bar2,'Grafik CSV',self.export_graph_csv).pack(side='left',padx=(0,4));self._button(bar2,"Seçili aralığı CSV'ye aktar",self.export_span_csv).pack(side='left',padx=4);self._button(bar2,'İstatistik CSV',self.export_stats_csv).pack(side='left',padx=4);self._button(bar2,'Grafik PNG',self.export_graph_png).pack(side='left',padx=4);self.coords=tk.StringVar(value='X = —    Y = —');tk.Label(bar2,textvariable=self.coords,fg='#203449',bg='#eef5fa',font=('Segoe UI',9,'bold'),padx=5,pady=2).pack(side='right');bar3=tk.Frame(toolbar,bg='#f4f8fb');bar3.pack(fill='x',pady=(3,0));ttk.Checkbutton(bar3,text='Lejantı göster',variable=self.legend_visible,command=self._toggle_legend).pack(side='right',padx=(8,0));tk.Label(bar3,text='Sol tık: prob ekle/sil • Sağ tık: prob etiketi • Sol sürükle: aralık • Sağ sürükle: kaydır • Tekerlek / orta tuş: zoom',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=2)
-    self.graph_panels=tk.PanedWindow(right,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.graph_panels.pack(fill='both',expand=True,padx=10,pady=(0,8));plotbox=tk.Frame(self.graph_panels,bg='#f4f8fb');self.graph_panels.add(plotbox,minsize=120,stretch='always'); self.fig=Figure(figsize=(9,5),dpi=100,facecolor='#f4f8fb');self.ax=self.fig.add_subplot(111);self.ax.set_facecolor('#ffffff');self.fig.subplots_adjust(left=.09,right=.985,top=.97,bottom=.12);self.canvas=FigureCanvasTkAgg(self.fig,master=plotbox);self.canvas.get_tk_widget().pack(fill='both',expand=True);self.canvas.mpl_connect('motion_notify_event',self.on_motion);self.canvas.mpl_connect('button_press_event',self.on_press);self.canvas.mpl_connect('button_release_event',self.on_release);self.canvas.mpl_connect('scroll_event',self.on_scroll)
+    bar2=tk.Frame(toolbar,bg='#f4f8fb');bar2.pack(fill='x',pady=(4,0));self._button(bar2,'Grafik CSV',self.export_graph_csv).pack(side='left',padx=(0,4));self._button(bar2,"Seçili aralığı CSV'ye aktar",self.export_span_csv).pack(side='left',padx=4);self._button(bar2,'İstatistik CSV',self.export_stats_csv).pack(side='left',padx=4);self._button(bar2,'Grafik PNG',self.export_graph_png).pack(side='left',padx=4);self.coords=tk.StringVar(value='X = —    Y = —');bar3=tk.Frame(toolbar,bg='#f4f8fb');bar3.pack(fill='x',pady=(3,0));self._button(bar3,'Y eksenleri',self._show_y_axes).pack(side='right',padx=(6,0));ttk.Checkbutton(bar3,text='Lejantı göster',variable=self.legend_visible,command=self._toggle_legend).pack(side='right',padx=(8,0));tk.Label(bar3,text='Sol tık: prob ekle/sil • Sağ tık: prob etiketi • Sol sürükle: aralık • Sağ sürükle: kaydır • Tekerlek / orta tuş: zoom',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=2)
+    self.graph_panels=tk.PanedWindow(right,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.graph_panels.pack(fill='both',expand=True,padx=10,pady=(0,8));plotbox=tk.Frame(self.graph_panels,bg='#f4f8fb');self.graph_panels.add(plotbox,minsize=120,stretch='always');readout=tk.Label(plotbox,textvariable=self.coords,fg='#405d75',bg='#f4f8fb',font=('Segoe UI',8),anchor='w',justify='left',padx=6,pady=2);readout.pack(side='bottom',fill='x');readout.bind('<Configure>',lambda e:readout.configure(wraplength=max(150,e.width-12))); self.fig=Figure(figsize=(9,5),dpi=100,facecolor='#f4f8fb');self.ax=self.fig.add_subplot(111);self.ax.set_facecolor('#ffffff');self.fig.subplots_adjust(left=.09,right=.985,top=.97,bottom=.12);self.canvas=FigureCanvasTkAgg(self.fig,master=plotbox);self.canvas.get_tk_widget().pack(fill='both',expand=True);self.canvas.mpl_connect('motion_notify_event',self.on_motion);self.canvas.mpl_connect('button_press_event',self.on_press);self.canvas.mpl_connect('button_release_event',self.on_release);self.canvas.mpl_connect('scroll_event',self.on_scroll);self.canvas.mpl_connect('resize_event',self._on_graph_resize)
     measurements=tk.Frame(self.graph_panels,bg='#f4f8fb',height=170);measurements.pack_propagate(False);self.graph_panels.add(measurements,minsize=145,height=170,stretch='never');self.tables=ttk.Notebook(measurements);self.tables.pack(fill='both',expand=True,padx=4,pady=4);stats_tab=tk.Frame(self.tables,bg='#f4f8fb');probe_tab=tk.Frame(self.tables,bg='#f4f8fb');self.tables.add(stats_tab,text='Kanal istatistikleri');self.tables.add(probe_tab,text='Problar');cols=('channel','start','end','min','max');self.table=ttk.Treeview(stats_tab,columns=cols,show='headings',height=4);labels=['Kanal','Başlangıç','Bitiş','Minimum','Maksimum'];widths=[280,150,150,150,150]
     for c,l,w in zip(cols,labels,widths):self.table.heading(c,text=l,command=lambda col=c:self.sort_tree(self.table,col));self.table.column(c,width=w,anchor='w' if c=='channel' else 'e')
     self._pack_measurement_table(self.table,stats_tab);pcols=('channel','probe','x','y');self.probe_table=ttk.Treeview(probe_tab,columns=pcols,show='headings',height=4)
@@ -581,6 +583,7 @@ class TraceDock(tk.Tk):
  def _timeline_active(self):return bool(self.timeline)
  def _clip_channels(self,clip,d):return [name for name in clip.get('channels',d['channels']) if name in d['channels']]
  def _timeline_changed(self):
+    live_rows={row['uid'] for row in self.timeline_rows};self._track_axes={key:slot for key,slot in self._track_axes.items() if key[0] in live_rows}
     self.span=None;self.mouse_data=None;self._span_generation+=1;self.redraw_all()
  def timeline_add(self):
     if not self.datasets:self.status.set('Önce bir veri dosyası ekleyin');return
@@ -874,6 +877,7 @@ class TraceDock(tk.Tk):
     if not self.datasets:return
     removed=self.datasets.pop(self.active);self.active=max(0,min(self.active,len(self.datasets)-1))
     contexts={removed['uid']}|{'clip:'+c['uid'] for c in self.timeline if c['dataset_uid']==removed['uid']};self.timeline=[c for c in self.timeline if c['dataset_uid']!=removed['uid']];self.probes={key:items for key,items in self.probes.items() if key[0] not in contexts};self.span=None
+    self._channel_axes={key:slot for key,slot in self._channel_axes.items() if key[0]!=removed['uid']}
     self.selected=set(self.datasets[self.active]['_selected']) if self.datasets else set();self.redraw_all()
 
  def switch_file(self,event=None):
@@ -887,9 +891,9 @@ class TraceDock(tk.Tk):
     if new and new.strip():self.datasets[self.active]['name']=new.strip();self.redraw_all()
  def render_channels(self):
     if not hasattr(self,'channel_tree'):
-      self.channel_tree=ttk.Treeview(self.chlist,columns=('rate','duration','factor'),show='tree headings',selectmode='extended')
+      self.channel_tree=ttk.Treeview(self.chlist,columns=('rate','duration','factor','axis'),show='tree headings',selectmode='extended')
       tree=self.channel_tree;tree.tag_configure('dataset',foreground='#007f85',font=('Segoe UI',9,'bold'));tree.heading('#0',text='Dosya / kanal');tree.column('#0',width=205,minwidth=130)
-      for col,label,width in [('rate','Hz',82),('duration','Süre (s)',96),('factor','Çarpan',70)]:tree.heading(col,text=label);tree.column(col,width=width,minwidth=55,anchor='e')
+      for col,label,width in [('rate','Hz',82),('duration','Süre (s)',96),('factor','Çarpan',70),('axis','Y ekseni',78)]:tree.heading(col,text=label);tree.column(col,width=width,minwidth=55,anchor='e')
       sb=ttk.Scrollbar(self.chlist,orient='vertical',command=tree.yview);hs=ttk.Scrollbar(self.chlist,orient='horizontal',command=tree.xview)
       tree.configure(yscrollcommand=sb.set,xscrollcommand=hs.set);sb.pack(side='right',fill='y');hs.pack(side='bottom',fill='x');tree.pack(fill='both',expand=True)
       self._check_images={}
@@ -902,18 +906,18 @@ class TraceDock(tk.Tk):
       tree.bind('<Button-1>',self._channel_tree_click);tree.bind('<Double-Button-1>',self._channel_tree_edit);tree.bind('<space>',self._channel_tree_space);tree.bind('<Button-3>',self._channel_tree_menu);tree.bind('<Menu>',lambda e:self._channel_tree_menu(e,True));tree.bind('<Shift-F10>',lambda e:self._channel_tree_menu(e,True))
     tree=self.channel_tree;highlighted=tree.selection();closed={iid for iid in tree.get_children() if not tree.item(iid,'open')};scroll=tree.yview();focus=tree.focus()
     for iid in tree.get_children():tree.delete(iid)
-    self._tree_rows={};q=self.filter.get().casefold()
+    self._tree_rows={};q=self.filter.get().casefold();axis_labels=self._source_axis_labels()
     for di,d in enumerate(self.datasets):
       names=[name for name in d['channels'] if q in name.casefold() or q in d['name'].casefold()]
       if not names:continue
       group='d_'+d['uid'];rates=list(d['channel_rates'].values());durations=[len(d['channels'][n])/d['channel_rates'][n] for n in d['channels']]
       def summary(values):return self._number(values[0]) if values and all(math.isclose(v,values[0],rel_tol=1e-8,abs_tol=1e-9) for v in values) else 'Karışık'
-      tree.insert('','end',iid=group,text=d['name'],values=(summary(rates),summary(durations),self._number(d.get('data_multiplier',1))),open=group not in closed,image=self._check_images[self._channel_group_state(d)],tags=('dataset',))
+      tree.insert('','end',iid=group,text=d['name'],values=(summary(rates),summary(durations),self._number(d.get('data_multiplier',1)),self._dataset_axis_label(d,axis_labels)),open=group not in closed,image=self._check_images[self._channel_group_state(d)],tags=('dataset',))
       self._tree_rows[group]=(di,None)
       for ci,name in enumerate(d['channels']):
         if name not in names:continue
         iid=f'{group}_c{ci}';rate=d['channel_rates'][name];label=name
-        tree.insert(group,'end',iid=iid,text=label,image=self._check_images[name in d['_selected']],values=(self._number(rate),self._number(len(d['channels'][name])/rate),self._number(d.get('multipliers',{}).get(name,1))))
+        axis_label=axis_labels.get((d['uid'],name),Y_AXIS_LABELS[self._channel_axes.get((d['uid'],name),'L1')]);tree.insert(group,'end',iid=iid,text=label,image=self._check_images[name in d['_selected']],values=(self._number(rate),self._number(len(d['channels'][name])/rate),self._number(d.get('multipliers',{}).get(name,1)),axis_label))
         self._tree_rows[iid]=(di,name)
     if focus in self._tree_rows:tree.focus(focus)
     tree.selection_set(tuple(iid for iid in highlighted if iid in self._tree_rows))
@@ -957,6 +961,9 @@ class TraceDock(tk.Tk):
     menu=tk.Menu(self,**options);self._channel_menu=menu;menu.add_command(label=(d['name']+f' / {len(names)} işaretli kanal') if name is None else name,state='disabled');menu.add_separator();rows=tk.Menu(menu,**options)
     for row in self.timeline_rows:rows.add_command(label=row['name']+' satırına ekle',command=lambda row_uid=row['uid']:self._timeline_add_source(uid,names,row_uid))
     menu.add_cascade(label='Mevcut satıra ekle',menu=rows,state='normal' if names else 'disabled');menu.add_command(label='Yeni satıra ekle',command=lambda:self._timeline_add_source(uid,names,new_row=True),state='normal' if names else 'disabled')
+    menu.add_separator();axis_menu=tk.Menu(menu,**options)
+    for slot,label in Y_AXIS_LABELS.items():axis_menu.add_command(label=label,command=lambda selected_slot=slot:self._assign_source_axis(uid,names,selected_slot))
+    menu.add_cascade(label='Y eksenine ata',menu=axis_menu,state='normal' if names else 'disabled')
     if keyboard:
       box=tree.bbox(iid,'#0')
       if not box:return 'break'
@@ -1003,6 +1010,8 @@ class TraceDock(tk.Tk):
     elif column=='#3':
       if name is None:self.edit_dataset_multiplier()
       else:self.edit_channel_multiplier(name)
+    elif column=='#4':
+      names=tuple(n for n in self.datasets[di]['channels'] if n in self.datasets[di]['_selected']) if name is None else (name,);self._source_axis_menu(self.datasets[di]['uid'],names,event.x_root,event.y_root)
     return 'break'
  def edit_timing(self,index,name,field):
     d=self.datasets[index];names=[name] if name is not None else list(d['channels']);label=name or (d['name']+' / tüm kanallar')
@@ -1055,6 +1064,8 @@ class TraceDock(tk.Tk):
     if new in d['channels']:messagebox.showwarning('Kanal adı kullanılıyor',f'“{new}” adlı kanal zaten var.',parent=self);return
     for field in ('channels','units','ids','_base_channels','multipliers','channel_rates','sample_rates','_channel_x','_base_stats','_envelopes'):
       if old in d.get(field,{}):d[field]={new if key==old else key:value for key,value in d[field].items()}
+    axis_key=(d['uid'],old)
+    if axis_key in self._channel_axes:self._channel_axes[(d['uid'],new)]=self._channel_axes.pop(axis_key)
     if old in d['_selected']:d['_selected'].remove(old);d['_selected'].add(new)
     for clip in self.timeline:
       if clip['dataset_uid']==d['uid'] and 'channels' in clip:clip['channels']=[new if n==old else n for n in clip['channels']]
@@ -1093,6 +1104,96 @@ class TraceDock(tk.Tk):
         tracks.add(track);clock=OffsetTimeAxis(d['_channel_x'][name],start);channel_label=f'Sütun {column+1} / {name}' if policy=='Sütun sırasına göre' else name if policy=='Kanal adına göre' else f"{d['name']} / {name} [Paket {ci+1}]"
         series.append({'key':key,'name':name,'dataset':d,'label':f"{row['name']} / {d['name']} / {name} [Paket {ci+1}]",'x':clock,'time':clock,'y':y,'track':track,'track_label':f"{row['name']} / {channel_label}",'row_uid':row_uid,'clip_index':ci,'clip_start':start,'clip_end':end})
     return series
+ def _axis_slot(self,entry):
+    return self._track_axes.setdefault(entry['track'],self._channel_axes.get((entry['dataset']['uid'],entry['name']),'L1'))
+ def _source_axis_labels(self):
+    slots={}
+    for entry in self._plot_series(limited=False):slots.setdefault((entry['dataset']['uid'],entry['name']),set()).add(self._axis_slot(entry))
+    return {key:Y_AXIS_LABELS[next(iter(values))] if len(values)==1 else 'Karışık' for key,values in slots.items()}
+ def _dataset_axis_label(self,d,labels):
+    values={labels.get((d['uid'],name),Y_AXIS_LABELS[self._channel_axes.get((d['uid'],name),'L1')]) for name in d['channels']}
+    return next(iter(values)) if len(values)==1 else 'Karışık'
+ def _axis_menu(self,tracks,x,y):
+    if not tracks:return
+    old=getattr(self,'_y_axis_menu',None)
+    if old is not None:old.destroy()
+    menu=tk.Menu(self,tearoff=False,bg='#f4f8fb',fg='#203449',activebackground='#d7efee',activeforeground='#164e58',font=('Segoe UI',10));self._y_axis_menu=menu
+    for slot,label in Y_AXIS_LABELS.items():menu.add_command(label='Y ekseni: '+label,command=lambda chosen=slot:self._assign_track_axes(tracks,chosen))
+    menu.add_separator();menu.add_command(label='Y eksenleri penceresi…',command=self._show_y_axes)
+    try:menu.tk_popup(round(x),round(y))
+    finally:menu.grab_release()
+ def _source_axis_menu(self,uid,names,x,y):
+    if not names:self.status.set('Önce bir kanal işaretleyin');return
+    menu=tk.Menu(self,tearoff=False,bg='#f4f8fb',fg='#203449',activebackground='#d7efee',activeforeground='#164e58',font=('Segoe UI',10));self._y_axis_menu=menu
+    for slot,label in Y_AXIS_LABELS.items():menu.add_command(label='Y ekseni: '+label,command=lambda chosen=slot:self._assign_source_axis(uid,names,chosen))
+    try:menu.tk_popup(round(x),round(y))
+    finally:menu.grab_release()
+ def _assign_source_axis(self,uid,names,slot):
+    if slot not in Y_AXIS_LABELS:return
+    entries=self._plot_series(limited=False);names=set(names);tracks={entry['track'] for entry in entries if entry['dataset']['uid']==uid and entry['name'] in names}
+    self._reset_axis_slots.update(self._axis_slot(entry) for entry in entries if entry['track'] in tracks)
+    for name in names:self._channel_axes[(uid,name)]=slot
+    for entry in entries:
+      if entry['track'] in tracks:self._reset_axis_slots.add(self._axis_slot(entry));self._channel_axes[(entry['dataset']['uid'],entry['name'])]=slot
+    self._track_axes.update({track:slot for track in tracks});self._reset_axis_slots.add(slot);self.redraw_all(preserve_view=True);self.status.set(f'{len(names)} kanal → {Y_AXIS_LABELS[slot]}')
+ def _assign_track_axes(self,tracks,slot):
+    if slot not in Y_AXIS_LABELS:return
+    tracks=set(tracks);entries=self._plot_series(limited=False)
+    for entry in entries:
+      if entry['track'] in tracks:self._reset_axis_slots.add(self._axis_slot(entry))
+    self._track_axes.update({track:slot for track in tracks});self._reset_axis_slots.add(slot);self.redraw_all(preserve_view=True);self.status.set(f'{len(tracks)} eğri → {Y_AXIS_LABELS[slot]}')
+ def _show_y_axes(self):
+    win=tk.Toplevel(self);win.title('Y eksenleri');win.geometry('790x470');win.configure(bg='#f4f8fb');win.transient(self)
+    tk.Label(win,text='Solda 2, sağda 2 bağımsız Y ekseni. Kanal seçip eksene atayın.',bg='#f4f8fb',fg='#203449',font=('Segoe UI',11,'bold')).pack(fill='x',padx=14,pady=(14,8))
+    area=tk.Frame(win,bg='#f4f8fb');area.pack(fill='both',expand=True,padx=14);tree=ttk.Treeview(area,columns=('channel','unit','axis'),show='headings',selectmode='extended');tree.heading('channel',text='Zaman çizelgesi / kanal');tree.heading('unit',text='Birim');tree.heading('axis',text='Y ekseni');tree.column('channel',width=500);tree.column('unit',width=90);tree.column('axis',width=100);self._pack_measurement_table(tree,area)
+    by_track={}
+    for entry in self._plot_series(limited=False):by_track.setdefault(entry['track'],entry)
+    keys=list(by_track)
+    def fill():
+      selected=tree.selection()
+      for iid in tree.get_children():tree.delete(iid)
+      for i,key in enumerate(keys):
+        entry=by_track[key];tree.insert('','end',iid=str(i),values=(entry['track_label'],entry['dataset'].get('units',{}).get(entry['name'],''),Y_AXIS_LABELS[self._axis_slot(entry)]))
+      tree.selection_set(tuple(i for i in selected if tree.exists(i)))
+    fill();bar=tk.Frame(win,bg='#f4f8fb');bar.pack(fill='x',padx=14,pady=12);choice=ttk.Combobox(bar,state='readonly',values=list(Y_AXIS_LABELS.values()),width=12);choice.set('Sol 1');choice.pack(side='left',padx=(0,6))
+    def apply():
+      selected=[keys[int(i)] for i in tree.selection()]
+      if not selected:return
+      slot=next(slot for slot,label in Y_AXIS_LABELS.items() if label==choice.get());self._assign_track_axes(selected,slot);fill()
+    def reset():
+      self._channel_axes.clear();self._track_axes.clear();self._reset_axis_slots=set(Y_AXIS_LABELS);self.redraw_all(preserve_view=True);fill()
+    self._button(bar,'Seçilenlere uygula',apply).pack(side='left');self._button(bar,'Tümünü Sol 1’e al',reset).pack(side='left',padx=6);self._button(bar,'Kapat',win.destroy).pack(side='right');tk.Label(win,text='Shift / Ctrl ile çoklu seçim • Lejanttaki kanal adına tıklayarak da eksen seçebilirsiniz.',bg='#f4f8fb',fg='#60758a').pack(fill='x',padx=14,pady=(0,10))
+ def _configure_y_axes(self,series):
+    for axis in list(self.fig.axes):
+      if axis is not self.ax:axis.remove()
+    self._y_axes={'L1':self.ax};self._used_axis_slots={self._axis_slot(entry) for entry in series};self._layout_y_axes()
+    for slot in Y_AXIS_LABELS:
+      if slot=='L1' or slot not in self._used_axis_slots:continue
+      axis=self.ax.twinx();axis.patch.set_visible(False);axis.xaxis.set_visible(False)
+      for spine in axis.spines.values():spine.set_visible(False)
+      side='left' if slot=='L2' else 'right';axis.spines[side].set_visible(True);axis.spines[side].set_position(('outward',68 if slot in ('L2','R2') else 0));axis.yaxis.set_ticks_position(side);axis.yaxis.set_label_position(side);axis.grid(False);self._y_axes[slot]=axis
+    for slot,axis in self._y_axes.items():
+      units={str(entry['dataset'].get('units',{}).get(entry['name'],'')).strip() for entry in series if self._axis_slot(entry)==slot};units.discard('');label=Y_AXIS_LABELS[slot]+(' · '+next(iter(units)) if len(units)==1 else '');color=Y_AXIS_COLORS[slot];axis.set_ylabel(label,color=color,fontsize=9);axis.tick_params(axis='y',colors=color,labelsize=8);axis.yaxis.set_major_formatter(FuncFormatter(lambda value,pos:self._axis_tick(value)))
+      side='left' if slot.startswith('L') else 'right';axis.spines[side].set_color(color);axis.spines[side].set_linewidth(1.1)
+    self.ax.spines['right'].set_visible(False);self.ax.spines['top'].set_visible(False)
+    if series and 'L1' not in self._used_axis_slots:self.ax.tick_params(axis='y',left=False,labelleft=False);self.ax.set_ylabel('');self.ax.spines['left'].set_visible(False)
+ def _layout_y_axes(self):
+    width=max(450,self.fig.bbox.width);left=(170 if 'L2' in self._used_axis_slots else 80)/width;right=1-(170 if 'R2' in self._used_axis_slots else 88 if 'R1' in self._used_axis_slots else 18)/width
+    self.fig.subplots_adjust(left=min(.30,max(.09,left)),right=max(.65,min(.985,right)),top=.97,bottom=.12)
+ def _on_graph_resize(self,event):
+    if not hasattr(self,'_used_axis_slots'):return
+    self._layout_y_axes();self._background=None;self._schedule_detail()
+ def _axis_tick(self,value):
+    text=f'{value:.6g}'
+    return text.replace('.',',') if self.decimal.get()==',' else text
+ def _graph_point(self,e,axis=None):return (axis or self.ax).transData.inverted().transform((e.x,e.y))
+ def _in_graph(self,e):return e.x is not None and e.y is not None and self.ax.bbox.contains(e.x,e.y)
+ def _axis_at_margin(self,e):
+    if e.x is None or e.y is None or not self.ax.bbox.y0<=e.y<=self.ax.bbox.y1 or self._in_graph(e):return None
+    candidates=[]
+    for slot in self._used_axis_slots:
+      pos=self.ax.bbox.x0 if slot.startswith('L') else self.ax.bbox.x1;pos+=(-1 if slot.startswith('L') else 1)*(68*self.fig.dpi/72 if slot in ('L2','R2') else 0);candidates.append((abs(e.x-pos),slot))
+    return min(candidates)[1] if candidates and min(candidates)[0]<=70 else None
  def _display_indices(self,entry,bounds,budget):
     clock=entry['x'];count=len(clock);start=0;stop=count
     if bounds is not None and self.xcombo.get()=='Geçen süre':
@@ -1101,38 +1202,42 @@ class TraceDock(tk.Tk):
 
  def redraw(self,preserve_view=False):
     if self._lod_after is not None:self.after_cancel(self._lod_after);self._lod_after=None
-    view=(self.ax.get_xlim(),self.ax.get_ylim()) if preserve_view else None
-    self._background=None;self.ax.clear();self._guide_artists=[];self._line_data={};self._series_map={};self.ax.set_facecolor('#ffffff');self.ax.set_axisbelow(True);self.ax.tick_params(colors='#40596f')
-    for sp in self.ax.spines.values():sp.set_color('#cbdbe7')
-    series=self._plot_series();elapsed=self.xcombo.get()=='Geçen süre';budget=max(256,min(4000,60000//max(1,len(series))))
+    view=(self.ax.get_xlim(),{slot:axis.get_ylim() for slot,axis in self._y_axes.items()}) if preserve_view else None
+    for axis in list(self.fig.axes):
+      if axis is not self.ax:axis.remove()
+    self._background=None;self.ax.clear();self._guide_artists=[];self._line_data={};self._series_map={};self._legend_artist=None;self._legend_targets=[];self.ax.set_facecolor('#ffffff');self.ax.set_axisbelow(True);self.ax.tick_params(colors='#40596f')
+    for spine in self.ax.spines.values():spine.set_color('#cbdbe7');spine.set_visible(True)
+    self.ax.tick_params(axis='y',left=True,labelleft=True);series=self._plot_series();self._configure_y_axes(series);elapsed=self.xcombo.get()=='Geçen süre';budget=max(256,min(4000,60000//max(1,len(series))))
     if not series:
-      self.ax.set_xlim(0,1);self.ax.set_ylim(0,1);self.ax.text(.5,.5,'Grafik için Dosya/Kanal sütununa sağ tıklayıp zaman çizelgesine ekleyin',color='#40596f',ha='center',va='center',transform=self.ax.transAxes)
-      self.span_artist=None;self.cursor_x=None;self.cursor_y=None;self._draw_guides();self.canvas.draw_idle();self._update_tables();return
-    track_colors={};previous_tracks={}
-    for i,entry in enumerate(series):
-      track=entry.get('track',entry['key']);first=track not in track_colors;track_colors.setdefault(track,PALETTE[len(track_colors)%len(PALETTE)]);color=track_colors[track]
-      key=entry['key'];x=entry['x'];y=entry['y'];indices=self._display_indices(entry,view[0] if view else None,budget);valid=np.isfinite(x[indices])&np.isfinite(y[indices]);indices=indices[valid]
-      line,=self.ax.plot(x[indices],y[indices],lw=1.15,color=color,label=entry.get('track_label',entry['label']) if first else '_nolegend_',picker=8,rasterized=True);self._line_data[line]=(key,x,y,indices);self._series_map[key]=entry
+      self.ax.set_xlim(0,1);self.ax.set_ylim(0,1);self.ax.text(.5,.5,'Grafik için Dosya/Kanal sütununa sağ tıklayıp zaman çizelgesine ekleyin',color='#40596f',ha='center',va='center',transform=self.ax.transAxes);self.span_artist=None;self.cursor_x=None;self.cursor_y=None;self._reset_axis_slots.clear();self._draw_guides();self.canvas.draw_idle();self._update_tables();return
+    track_colors={};previous_tracks={};legend_entries=[]
+    for entry in series:
+      track=entry['track'];first=track not in track_colors;track_colors.setdefault(track,PALETTE[len(track_colors)%len(PALETTE)]);color=track_colors[track];slot=self._axis_slot(entry);axis=self._y_axes[slot];entry['axis']=axis;entry['axis_slot']=slot
+      key=entry['key'];x=entry['x'];y=entry['y'];indices=self._display_indices(entry,view[0] if view else None,budget);valid=np.isfinite(x[indices])&np.isfinite(y[indices]);indices=indices[valid];label=entry['track_label']+' ['+Y_AXIS_LABELS[slot]+']'
+      line,=axis.plot(x[indices],y[indices],lw=1.15,color=color,label=label if first else '_nolegend_',picker=8,rasterized=True);self._line_data[line]=(key,x,y,indices);self._series_map[key]=entry
+      if first:legend_entries.append((line,label,track))
       previous=previous_tracks.get(track)
-      if previous is not None and 'clip_index' in entry and previous['clip_index']==entry['clip_index']-1:
+      if previous is not None and previous['clip_index']==entry['clip_index']-1:
         px=previous['x'];py=previous['y'];rate=previous['dataset']['channel_rates'][previous['name']]
-        if len(px) and len(x) and math.isclose(float(px[-1])+1/rate,entry['clip_start'],rel_tol=1e-10,abs_tol=1e-9) and np.isfinite(py[-1]) and np.isfinite(y[0]):self.ax.plot([px[-1],x[0]],[py[-1],y[0]],color=color,lw=1.15,label='_nolegend_')
+        if len(px) and len(x) and math.isclose(float(px[-1])+1/rate,entry['clip_start'],rel_tol=1e-10,abs_tol=1e-9) and np.isfinite(py[-1]) and np.isfinite(y[0]):axis.plot([px[-1],x[0]],[py[-1],y[0]],color=color,lw=1.15,label='_nolegend_')
       previous_tracks[track]=entry
       for probe_no,probe in enumerate(self.probes.get(key,[]),1):
-        pi=probe['index']
-        if pi>=len(x) or not np.isfinite(x[pi]) or not np.isfinite(y[pi]):continue
-        self.ax.plot([x[pi]],[y[pi]],marker='o',ms=8,markerfacecolor='none',markeredgecolor=color,mew=1.5,zorder=9)
-        if probe['label']:self.ax.annotate(f"P{probe_no}  {self._number(y[pi])}",(x[pi],y[pi]),xytext=(8,10),textcoords='offset points',color='#203449',fontsize=8,fontweight='bold',bbox=dict(boxstyle='round,pad=.3',facecolor='#eef5fa',edgecolor=color,alpha=.96),zorder=10)
-    self.ax.set_xlabel('Geçen süre (HH:MM:SS.SSSS)' if elapsed else self.xcombo.get(),color='#526c82');self.ax.set_ylabel('Değer',color='#526c82')
-    self.ax.xaxis.set_major_formatter(FuncFormatter(lambda val,pos:elapsed_text(val) if elapsed else self._number(val)));self.ax.yaxis.set_major_formatter(FuncFormatter(lambda val,pos:self._number(val)))
-    self.span_artist=self.ax.axvspan(*self.span,color='#007f85',alpha=.16,zorder=0) if self.span else None
-    legend=self.ax.legend(loc='upper left',facecolor='#f4f8fb',edgecolor='#cbdbe7',labelcolor='#203449',fontsize=8,ncol=2);legend.set_visible(self.legend_visible.get())
-    self.cursor_x=self.ax.axvline(0,color='#608ca1',lw=.8,ls='--',visible=False,animated=True);self.cursor_y=self.ax.axhline(0,color='#608ca1',lw=.8,ls='--',visible=False,animated=True)
+        index=probe['index']
+        if index>=len(x) or not np.isfinite(x[index]) or not np.isfinite(y[index]):continue
+        axis.plot([x[index]],[y[index]],marker='o',ms=8,markerfacecolor='none',markeredgecolor=color,mew=1.5,zorder=9)
+        if probe['label']:axis.annotate(f"P{probe_no}  {self._number(y[index])}",(x[index],y[index]),xytext=(8,10),textcoords='offset points',color='#203449',fontsize=8,fontweight='bold',bbox=dict(boxstyle='round,pad=.3',facecolor='#eef5fa',edgecolor=color,alpha=.96),zorder=10)
+    self.ax.set_xlabel('Geçen süre (HH:MM:SS.SSSS)' if elapsed else self.xcombo.get(),color='#526c82');self.ax.xaxis.set_major_formatter(FuncFormatter(lambda value,pos:elapsed_text(value) if elapsed else self._number(value)))
+    self.span_artist=self.ax.axvspan(*self.span,color='#007f85',alpha=.16,zorder=0) if self.span else None;top_axis=list(self._y_axes.values())[-1];self._cursor_axis=top_axis
+    legend=top_axis.legend([item[0] for item in legend_entries],[item[1] for item in legend_entries],loc='upper left',facecolor='#f4f8fb',edgecolor='#cbdbe7',labelcolor='#203449',fontsize=8,ncol=2);self._legend_artist=legend;legend.set_visible(self.legend_visible.get());self._legend_targets=[(artist,entry[2]) for artist,entry in zip(legend.get_texts(),legend_entries)]+[(artist,entry[2]) for artist,entry in zip(legend.legend_handles,legend_entries)]
+    self.cursor_x=top_axis.axvline(0,color='#608ca1',lw=.8,ls='--',visible=False,animated=True);self.cursor_y=top_axis.axhline(0,color='#608ca1',lw=.8,ls='--',visible=False,animated=True)
     if self._timeline_active() and not view:self.ax.set_xlim(0,max(self._timeline_duration(),1e-9))
-    if view:self.ax.set_xlim(*view[0]);self.ax.set_ylim(*view[1])
-    self._draw_guides();self.ax.callbacks.connect('xlim_changed',lambda ax:self._schedule_detail());self.canvas.draw_idle();self._update_tables()
+    if view:
+      self.ax.set_xlim(*view[0])
+      for slot,limits in view[1].items():
+        if slot in self._y_axes and slot not in self._reset_axis_slots:self._y_axes[slot].set_ylim(*limits)
+    self._reset_axis_slots.clear();self._draw_guides();self.ax.callbacks.connect('xlim_changed',lambda axis:self._schedule_detail());self.canvas.draw_idle();self._update_tables()
  def _toggle_legend(self):
-    legend=self.ax.get_legend()
+    legend=self._legend_artist
     if legend is not None:legend.set_visible(self.legend_visible.get())
     self._background=None;self.canvas.draw_idle()
  def _schedule_detail(self):
@@ -1152,47 +1257,63 @@ class TraceDock(tk.Tk):
     if self._background is None or getattr(self,'cursor_x',None) is None:return
     self.canvas.restore_region(self._background)
     for artist in (self.cursor_x,self.cursor_y):
-      if artist.get_visible():self.ax.draw_artist(artist)
+      if artist.get_visible():artist.axes.draw_artist(artist)
     self.canvas.blit(self.ax.bbox)
 
  def on_motion(self,e):
-    if not e.inaxes or e.xdata is None:return
+    if not self._in_graph(e):
+      if getattr(self,'cursor_x',None) is not None:self.cursor_x.set_visible(False);self.cursor_y.set_visible(False);self._blit_cursor()
+      return
     now=time.perf_counter()
     if now-self._motion_clock<1/35:return
-    self._motion_clock=now;self.mouse_data=(e.xdata,e.ydata);xtext=elapsed_text(e.xdata) if self.xcombo.get()=='Geçen süre' else self._number(e.xdata);self.coords.set(f'X = {xtext}    Y = {self._number(e.ydata)}')
+    self._motion_clock=now;xvalue,yvalue=self._graph_point(e);self.mouse_data=(xvalue,yvalue);values='  '.join(Y_AXIS_LABELS[slot]+' = '+self._number(self._graph_point(e,axis)[1]) for slot,axis in self._y_axes.items() if slot in self._used_axis_slots);self.coords.set('X = '+elapsed_text(xvalue)+'    '+values)
     if self.drag_mode in ('pan','axis_zoom') and self.drag_start:
-      sx,sy,xlim,ylim=self.drag_start;dx=e.x-sx;dy=e.y-sy;bbox=self.ax.bbox
+      sx,sy,xlim,ylims=self.drag_start;dx=e.x-sx;dy=e.y-sy;bbox=self.ax.bbox
       if self.drag_mode=='pan':
-        xshift=-dx/bbox.width*(xlim[1]-xlim[0]);yshift=-dy/bbox.height*(ylim[1]-ylim[0]);self.ax.set_xlim(xlim[0]+xshift,xlim[1]+xshift);self.ax.set_ylim(ylim[0]+yshift,ylim[1]+yshift)
-      elif self.drag_mode=='axis_zoom':
-        fx=math.exp(-dx/120);fy=math.exp(dy/120);xc=sum(xlim)/2;yc=sum(ylim)/2;self.ax.set_xlim(xc+(xlim[0]-xc)*fx,xc+(xlim[1]-xc)*fx);self.ax.set_ylim(yc+(ylim[0]-yc)*fy,yc+(ylim[1]-yc)*fy)
+        shift=-dx/bbox.width*(xlim[1]-xlim[0]);self.ax.set_xlim(xlim[0]+shift,xlim[1]+shift)
+        for slot,limits in ylims.items():
+          shift=-dy/bbox.height*(limits[1]-limits[0]);self._y_axes[slot].set_ylim(limits[0]+shift,limits[1]+shift)
+      else:
+        fx=math.exp(-dx/120);fy=math.exp(dy/120);center=sum(xlim)/2;self.ax.set_xlim(center+(xlim[0]-center)*fx,center+(xlim[1]-center)*fx)
+        for slot,limits in ylims.items():
+          center=sum(limits)/2;self._y_axes[slot].set_ylim(center+(limits[0]-center)*fy,center+(limits[1]-center)*fy)
       self._background=None;self.canvas.draw_idle()
     if getattr(self,'cursor_x',None) is not None:
-      self.cursor_x.set_xdata([e.xdata]*2);self.cursor_y.set_ydata([e.ydata]*2);self.cursor_x.set_visible(True);self.cursor_y.set_visible(True)
+      cy=self._graph_point(e,self._cursor_axis)[1];self.cursor_x.set_xdata([xvalue]*2);self.cursor_y.set_ydata([cy]*2);self.cursor_x.set_visible(True);self.cursor_y.set_visible(True)
       if self.drag_mode not in ('pan','axis_zoom'):self._blit_cursor()
-
  def on_scroll(self,e):
-    if not e.inaxes:return
     step=getattr(e,'step',0)
-    if step:self._zoom_axes(1/(1.2**step),1/(1.2**step),e.xdata,e.ydata)
+    if not step:return
+    factor=1/(1.2**step);slot=self._axis_at_margin(e)
+    if slot:
+      axis=self._y_axes[slot];center=self._graph_point(e,axis)[1];a,b=axis.get_ylim();axis.set_ylim(center+(a-center)*factor,center+(b-center)*factor);self._background=None;self.canvas.draw_idle()
+    elif self._in_graph(e):
+      x,y=self._graph_point(e);self._zoom_axes(factor,factor,x,y)
  def _zoom_axes(self,fx,fy,cx=None,cy=None):
-    xa,xb=self.ax.get_xlim();ya,yb=self.ax.get_ylim();cx=(xa+xb)/2 if cx is None else cx;cy=(ya+yb)/2 if cy is None else cy
-    self.ax.set_xlim(cx+(xa-cx)*fx,cx+(xb-cx)*fx);self.ax.set_ylim(cy+(ya-cy)*fy,cy+(yb-cy)*fy);self._draw_guides();self.canvas.draw_idle()
+    xa,xb=self.ax.get_xlim();ya,yb=self.ax.get_ylim();cx=(xa+xb)/2 if cx is None else cx;cy=(ya+yb)/2 if cy is None else cy;pixel=self.ax.transData.transform((cx,cy));self.ax.set_xlim(cx+(xa-cx)*fx,cx+(xb-cx)*fx)
+    for axis in self._y_axes.values():
+      a,b=axis.get_ylim();center=axis.transData.inverted().transform(pixel)[1];axis.set_ylim(center+(a-center)*fy,center+(b-center)*fy)
+    self._background=None;self.canvas.draw_idle()
  def on_span(self,xmin,xmax):
     if abs(xmax-xmin)<=max(abs(xmin),abs(xmax),1)*1e-12:return
     self._span_generation+=1;self.span=(min(xmin,xmax),max(xmin,xmax))
     if getattr(self,'span_artist',None):self.span_artist.remove()
     self.span_artist=self.ax.axvspan(self.span[0],self.span[1],color='#007f85',alpha=.16,zorder=0);self.status.set(f'Seçili aralık: {self._number(self.span[0])} — {self._number(self.span[1])}');self.canvas.draw_idle()
  def on_press(self,e):
-    if not e.inaxes:return
+    if e.button==1 and self._legend_artist is not None and self._legend_artist.get_visible():
+      for artist,track in self._legend_targets:
+        if artist.contains(e)[0]:
+          self.click_start=None;self._graph_button=None;widget=self.canvas.get_tk_widget();self._axis_menu([track],widget.winfo_rootx()+e.x,widget.winfo_rooty()+widget.winfo_height()-e.y);return
+    if not self._in_graph(e):return
+    x,y=self._graph_point(e);ylims={slot:axis.get_ylim() for slot,axis in self._y_axes.items()}
     if e.button in (1,3):
-      mode='span' if e.button==1 or (e.key and 'shift' in str(e.key).lower()) else 'pan';self._graph_button=e.button;self.drag_mode=mode;self.drag_start=(e.x,e.y,self.ax.get_xlim(),self.ax.get_ylim());self.click_start=(e.x,e.y,self._span_generation,mode,e.xdata,e.ydata)
-    elif e.button==2:self._graph_button=2;self.drag_mode='axis_zoom';self.drag_start=(e.x,e.y,self.ax.get_xlim(),self.ax.get_ylim())
+      mode='span' if e.button==1 or (e.key and 'shift' in str(e.key).lower()) else 'pan';self._graph_button=e.button;self.drag_mode=mode;self.drag_start=(e.x,e.y,self.ax.get_xlim(),ylims);self.click_start=(e.x,e.y,self._span_generation,mode,x,y)
+    elif e.button==2:self._graph_button=2;self.drag_mode='axis_zoom';self.drag_start=(e.x,e.y,self.ax.get_xlim(),ylims)
  def on_release(self,e):
     if e.button in (1,3) and self.click_start and self._graph_button==e.button:
-      start=self.click_start;self.click_start=None;self.drag_mode=None;self.drag_start=None;self._graph_button=None;dx=abs(e.x-start[0]);dy=abs(e.y-start[1])
-      if start[3]=='span' and e.inaxes and dx>=5 and start[4] is not None and e.xdata is not None:self.on_span(start[4],e.xdata)
-      elif dx<5 and dy<5 and e.inaxes:
+      start=self.click_start;self.click_start=None;self.drag_mode=None;self.drag_start=None;self._graph_button=None;dx=abs(e.x-start[0]);dy=abs(e.y-start[1]);inside=self._in_graph(e)
+      if start[3]=='span' and inside and dx>=5:self.on_span(start[4],self._graph_point(e)[0])
+      elif dx<5 and dy<5 and inside:
         if e.button==1:self.after_idle(lambda:self._finish_click(e,start[2]))
         else:
           hit=self._nearest_probe(e)
@@ -1200,7 +1321,7 @@ class TraceDock(tk.Tk):
             name,index=hit;probe=self.probes[name][index];probe['label']=not probe['label'];self.status.set(f'{self._key_label(name)} P{index+1} etiketi '+('gösteriliyor' if probe['label'] else 'gizlendi'));self.redraw(preserve_view=True)
     elif e.button==2 and self._graph_button==2:self._graph_button=None;self.drag_mode=None;self.drag_start=None
  def _finish_click(self,e,generation):
-    if generation!=self._span_generation or not e.inaxes or not getattr(self,'_line_data',None):return
+    if generation!=self._span_generation or not self._in_graph(e) or not getattr(self,'_line_data',None):return
     hit=self._nearest_probe(e)
     if hit:
       n,j=hit;self.probes[n].pop(j)
@@ -1212,7 +1333,7 @@ class TraceDock(tk.Tk):
       if contains and ind.get('ind') is not None:
         positions=np.asarray(ind['ind'],dtype=int);positions=positions[(positions>=0)&(positions<len(sample_indices))]
         if not len(positions):continue
-        indices=sample_indices[positions];pixels=self.ax.transData.transform(np.column_stack((x[indices],y[indices])));distances=np.hypot(pixels[:,0]-e.x,pixels[:,1]-e.y);nearest=int(np.argmin(distances));dist=float(distances[nearest]);idx=int(indices[nearest])
+        indices=sample_indices[positions];pixels=line.axes.transData.transform(np.column_stack((x[indices],y[indices])));distances=np.hypot(pixels[:,0]-e.x,pixels[:,1]-e.y);nearest=int(np.argmin(distances));dist=float(distances[nearest]);idx=int(indices[nearest])
         if best is None or dist<best[0]:best=(dist,name,idx)
     if best:
       n=best[1];items=self.probes.setdefault(n,[])
@@ -1220,14 +1341,14 @@ class TraceDock(tk.Tk):
       items.append({'index':best[2],'label':True});self.status.set(f'{self._key_label(n)} kanalına P{len(items)} probe eklendi');self.redraw(preserve_view=True);return
     if self.span is not None:self.clear_span()
  def _nearest_probe(self,e,threshold=13):
-    if not e.inaxes:return None
+    if not self._in_graph(e):return None
     nearest=None;distance=threshold
     for n,items in self.probes.items():
       entry=next((entry for entry in getattr(self,'_line_data',{}).values() if entry[0]==n),None)
       if entry is None:continue
       x,y=entry[1],entry[2]
       for j,p in enumerate(items):
-        i=p['index'];px,py=self.ax.transData.transform((x[i],y[i]));dist=((px-e.x)**2+(py-e.y)**2)**.5
+        i=p['index'];axis=self._series_map[n]['axis'];px,py=axis.transData.transform((x[i],y[i]));dist=((px-e.x)**2+(py-e.y)**2)**.5
         if dist<distance:nearest=(n,j);distance=dist
     return nearest
  def _draw_guides(self):
