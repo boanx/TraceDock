@@ -399,7 +399,7 @@ def elapsed_text(seconds):
 class TraceDock(tk.Tk):
  def __init__(self):
     super().__init__(); self.title('TraceDock'); window_width=min(1500,max(1000,self.winfo_screenwidth()-60));window_height=min(920,max(620,self.winfo_screenheight()-100));self.geometry(f'{window_width}x{window_height}');self.minsize(min(1240,window_width),min(720,window_height)); self.configure(bg='#e8eff5')
-    self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Kanal adına göre');self.datasets=[]; self.active=0; self.selected=set();self._tree_anchor=None; self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None;self._channel_axes={};self._track_axes={};self._y_axes={};self._reset_axis_slots=set();self._legend_artist=None;self._legend_targets=[]; self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}
+    self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Seçili kanal sırasına göre');self.datasets=[]; self.active=0; self.selected=set();self._tree_anchor=None; self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None;self._channel_axes={};self._track_axes={};self._y_axes={};self._reset_axis_slots=set();self._legend_artist=None;self._legend_targets=[];self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}
     icon_path=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))/'tracedock.ico'
     if icon_path.exists():
       try:self.iconbitmap(str(icon_path))
@@ -509,7 +509,7 @@ class TraceDock(tk.Tk):
     self.timeline_total=tk.StringVar(value='Toplam: 00:00:00.0000')
     tk.Label(row,textvariable=self.timeline_total,fg='#203449',bg='#f4f8fb').pack(side='right')
     tk.Label(row,text='Kanal eşleştirme',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=(12,5))
-    combo=ttk.Combobox(row,textvariable=self.timeline_match,state='readonly',width=22,values=['Kanal adına göre','Sütun sırasına göre','Ayrı çizgiler']);combo.pack(side='left');combo.bind('<<ComboboxSelected>>',lambda e:self._timeline_changed())
+    combo=ttk.Combobox(row,textvariable=self.timeline_match,state='readonly',width=25,values=['Seçili kanal sırasına göre','Kanal adına göre','Sütun sırasına göre','Ayrı çizgiler']);combo.pack(side='left');combo.bind('<<ComboboxSelected>>',lambda e:self._timeline_changed())
     self.timeline_content=tk.Frame(dock,bg='#f4f8fb');self.timeline_content.pack(fill='both',expand=True)
     row=tk.Frame(self.timeline_content,bg='#f4f8fb');row.pack(fill='x',padx=10,pady=(0,3))
     tk.Label(row,text='Aktif satır',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=(0,6))
@@ -1080,11 +1080,13 @@ class TraceDock(tk.Tk):
     tracks=set();policy=self.timeline_match.get();row_counts={}
     for clip,d,start,end in self._timeline_layout():
       row_uid=clip.get('row_uid',self.timeline_rows[0]['uid']);row=self._timeline_row_info(row_uid);ci=row_counts.get(row_uid,0);row_counts[row_uid]=ci+1;names=set(self._clip_channels(clip,d))
+      selected_column=0
       for column,(name,y) in enumerate(d['channels'].items()):
         if name not in names:continue
-        key=('clip:'+clip['uid'],name);channel_track=name if policy=='Kanal adına göre' else column if policy=='Sütun sırasına göre' else key;track=(row_uid,channel_track)
+        selected_column+=1
+        key=('clip:'+clip['uid'],name);channel_track=('selected',selected_column) if policy=='Seçili kanal sırasına göre' else name if policy=='Kanal adına göre' else column if policy=='Sütun sırasına göre' else key;track=(row_uid,channel_track)
         if track not in tracks and len(tracks)>=limit:continue
-        tracks.add(track);clock=SampleTimeAxis(len(y),d['channel_rates'][name],origin=start);channel_label=f'Sütun {column+1} / {name}' if policy=='Sütun sırasına göre' else name if policy=='Kanal adına göre' else f"{d['name']} / {name} [Paket {ci+1}]"
+        tracks.add(track);clock=SampleTimeAxis(len(y),d['channel_rates'][name],origin=start);channel_label=f'Seçili kanal {selected_column} / {name}' if policy=='Seçili kanal sırasına göre' else f'Sütun {column+1} / {name}' if policy=='Sütun sırasına göre' else name if policy=='Kanal adına göre' else f"{d['name']} / {name} [Paket {ci+1}]"
         series.append({'key':key,'name':name,'dataset':d,'label':f"{row['name']} / {d['name']} / {name} [Paket {ci+1}]",'x':clock,'time':clock,'y':y,'track':track,'track_label':f"{row['name']} / {channel_label}",'row_uid':row_uid,'clip_index':ci,'clip_start':start,'clip_end':end})
     return series
  def _axis_slot(self,entry):

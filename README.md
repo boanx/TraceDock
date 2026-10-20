@@ -28,6 +28,8 @@ Kaynaklar arasında otomatik frekans eşitlemesi yapılmaz. Her paket özgün ö
 
 Zaman çizelgesinde örneklerin zamanı kanalın **Hz** ayarından hesaplanır: `paket başlangıcı + örnek indeksi / Hz`. Kaynak zaman sütunundaki duraklamalar veya saat sıfırlanmaları çizelgeye taşınmaz. Paket süresi, eklenen kanalların en büyük `N/Hz` değeridir. Aynı satırdaki ikinci paket ilk paketin bittiği anda başlar; prob etiketleri, prob tablosu ve CSV çıktısı bu birikimli zamanı kullanır. Örneğin 100 Hz'de 1.000 örnekten sonra ikinci paket **00:00:10.0000** noktasında başlar. Daha kısa kanalların eksik ölçümleri doldurulmaz.
 
+Varsayılan **Seçili kanal sırasına göre** eşleştirmesi, paketlere eklenen kanalların ilkini ilkine, ikincisini ikincisine bağlar (kaynak tablodaki sıralarıyla). Kanal adlarının veya kaynak sütun numaralarının aynı olması gerekmez. Birleştirilecek kanalları her pakette aynı sırada seçin. Eşleşen parçalar aynı renkte çizilir; paket sınırındaki son ve ilk örnekler, çarpanları farklı olsa da bağlanır. Çarpan yalnızca Y değerini değiştirir. Ad veya kaynak sütun numarasıyla eşleştirme ve **Ayrı çizgiler** seçenekleri de kullanılabilir.
+
 ## İndirme
 
 [Windows için TraceDock.exe](https://github.com/boanx/TraceDock/releases/latest/download/TraceDock.exe) · [Tüm sürüm dosyaları](https://github.com/boanx/TraceDock/releases/latest)
