@@ -1,0 +1,87 @@
+TraceDock — CSV / TDMS zaman serisi analiz uygulaması
+
+TraceDock, Exlab ile toplanmış ve CSV, TXT veya TSV olarak dışa aktarılmış ölçüm verilerini işleyebilir. Kanal adları, birimler ve desteklenen zaman bilgileri korunur. Exlab .tdmbin ham dosyaları doğrudan açılmaz; önce Exlab üzerinden dışa aktarılmalıdır.
+
+TraceDock.exe dosyasına çift tıklayın. Kurulum, Python veya internet bağlantısı gerekmez.
+
+BÜYÜK DOSYALAR
+• İş yükü uygunsa kullanılabilir tüm mantıksal çekirdekler devreye girer. Büyük CSV/Strain Gauge dosyaları ayrı işlemcilerde parçalara ayrılarak okunur; kanalların grafik önbellekleri ve TDMS kanal işlemleri paralel hazırlanır. Büyük CSV dışa aktarımlarının biçimlendirilmesi de birden fazla işlemde yapılır.
+• Çalışan sayısı ve bekleyen veri parçalarının boyutu bilgisayardaki çekirdek sayısı ile o anda kullanılabilir RAM'e göre otomatik ayarlanır. Bellek, ölçüm verileri ve grafik önbellekleri için kullanılır. Küçük dosyalarda işlem başlatma yükünü azaltmak için daha az çalışan açılabilir.
+• CSV yükleme, TDMS okuma/dönüştürme ve CSV dışa aktarma arka planda çalışır. İlerleme çubuğundan durumu izleyebilir, “İptal” ile işlemi durdurabilirsiniz. Dışa aktarım iptal edildiğinde mevcut hedef dosya korunur.
+• Grafik, görünen aralıktaki minimum ve maksimumları koruyan bir özet kullanır; yakınlaştırınca o aralığın daha ayrıntılı örnekleri çizilir. Bu işlem verilerin frekansını veya örnek sayısını değiştirmez. Dışa aktarmada seçili aralıktaki özgün örneklerin tamamı yazılır.
+
+VERİ YÜKLEME VE TDMS İŞLEME
+• “Strain Gauge dosyası ekle” ile Exlab / Strain Gauge CSV, TXT veya TSV dışa aktarımlarını; “CSV ekle” ile genel CSV tablolarını; “TDMS ekle” ile NI TDMS dosyalarını yükleyin. Birden fazla veri seti aynı oturumda açılabilir.
+• Strain Gauge okuyucusu ay/gün/saat başında sıfır olmayan tarihleri de destekler: 2026-9-3 9:50:31.354 gibi. Kanal adları, ID ve birimler korunur; ölçüm değerleri dosyadaki sayısal değerlerle aynıdır.
+• Genel CSV dosyalarında DateTime başlığı zorunlu değildir. Başlıklı veya yalnızca sayısal sütunlardan oluşan CSV tabloları da açılır. Zaman sütunu yoksa başlangıçta 1 Hz kullanılır; dosyanın/kanalın Hz veya test süresini çift tıklayarak girin. UTF-8, UTF-16 ve Türkçe Windows metin kodlamaları, nokta/virgül ondalıklar ve virgül/noktalı virgül/sekme sütun ayıraçları desteklenir.
+• Her CSV kendi özgün örnek sayısını, ölçüm değerlerini ve zaman aralıklarını korur. Kaynaklar arasında frekans eşitlemesi yapılmaz. Kaynaklar yüklendiğinde grafiğe otomatik eklenmez; yalnızca zaman çizelgesindeki paketler çizilir.
+• Kanallar tablosunda dosya satırındaki “Hz” veya “Süre (s)” hücresine çift tıklayın: girilen ayar o CSV'nin tüm kanallarına uygulanır. Kanal satırındaki aynı hücreleri çift tıklayarak yalnızca o kanalı düzenleyebilirsiniz.
+• Frekans girildiğinde test süresi, süre girildiğinde frekans hesaplanır: test süresi = örnek sayısı / Hz. Örneğin 1.000 örnek ve 10 saniye için frekans 100 Hz'dir. Zaman damgaları 0'dan (N−1)/Hz'ye gider; son örnek 9,99 saniyededir. Süreyi saniye olarak veya HH:MM:SS.SSSS biçiminde, ondalıkları nokta ya da virgülle girin. Ölçüm örnekleri çoğaltılmaz veya silinmez.
+• TDMS dönüşümünde aynı dosyanın kanalları en yüksek kanal hızında eşitlenerek CSV'ye kaydedilir. Kayıt konumunu seçebilirsiniz. Oluşan veri kümesi diğer CSV kaynaklarından bağımsızdır; zaman bilgileri aynı tablodan değiştirilebilir.
+
+KANAL VE GRAFİK ARAÇLARI
+• Kanallar dosya adına göre gruplanır. Kutucuğa tıklayarak veya boşluk tuşuyla zaman çizelgesine eklenecek kanalları seçin. Seçim, mevcut grafiği değiştirmez. Dosya/Kanal sütununda bir satıra sağ tıklayarak “Mevcut satıra ekle” veya “Yeni satıra ekle” seçin. Dosya satırı bütün kanalları, kanal satırı yalnızca o kanalı ekler.
+• Dosya veya kanal adına çift tıklayarak yeniden adlandırın. “Çarpan” hücresine çift tıklayarak dosyanın tüm verilerine ya da tek kanala çarpan uygulayın. Dosya çarpanı ile kanal çarpanı birlikte çarpılır. Arama kutusu dosya, kanal ve etiketlerde arar.
+• Zaman çizelgesi geçen süre ekseninde gösterilir; grafikte gösterilecek kanal sayısını 12, 30, 100 veya tümü yapabilirsiniz.
+• Grafik üzerinde sağ sürükleme görünümü kaydırır; sol sürükleme veya Shift+sağ sürükleme span seçer. Tekerlek X/Y yakınlaştırır; orta tuş sürüklemesi eksenleri bağımsız yakınlaştırır.
+• Bir eğriye sağ tıklayıp kanal başına en fazla 5 probe ekleyin. Probe üzerinde sol tıkla etiketini açıp kapatın; sağ tıkla probe'u kaldırın. İstatistik ve probe tabloları alt sekmelerde gösterilir ve sıralanabilir.
+• Kanal etiketleri ekleyip seçili kanallara atayın. Etiketleri filtreleme ve JSON config kaydet/yükleme desteklenir.
+
+DIŞA AKTARMA
+• “Grafik CSV” span seçiliyse span'i, değilse görünür X aralığını dışa aktarır.
+• “Seçili aralığı CSV'ye aktar” yalnızca span'i dışa aktarır.
+• Zaman eksenleri farklıysa her kanal, kendi zaman ve değer sütunu çiftiyle dışa aktarılır. Ortak zaman ekseni olan kanallar tek zaman sütununu paylaşır. Seçili aralık her kanalın kendi zaman damgalarına uygulanır.
+• “İstatistik CSV” istatistik tablosunu, “Grafik PNG” grafiğin mevcut görünümünü kaydeder.
+• Ondalık ayıracı nokta veya virgül olarak seçilebilir; virgül seçilince CSV sütun ayıracı noktalı virgül olur.
+
+TraceDock, Exlab CSV ve NI TDMS verilerini destekler. Exlab'in .tdmbin ham dosyasını önce Exlab'den CSV olarak dışa aktarın.
+
+ZAMAN ÇİZELGESİ / ÇOK SATIRLI GRAFİK
+• Zaman çizelgesindeki her satır bağımsız bir veri dizisidir ve sıfırdan başlar. Aynı satırdaki paketler uç uca devam eder; farklı satırlar aynı grafikte üst üste gösterilir. Toplam süre, en uzun satırın süresidir.
+• İlk dosyayı soldaki listeden seçip “Seçili kanalları ekle”ye basın. “Yeni satır” ile ikinci bir satır açın, karşılaştırılacak dosyayı soldan seçin ve tekrar “Seçili kanalları ekle”ye basın. Bu iki dosya ortak zaman ekseninde üst üste çizilir.
+• Hedef satırı soldaki satır başlığına tıklayarak veya “Aktif satır” listesinden seçin. Eklenen dosyalar aktif satırın sonuna gelir. Aynı dosya birden fazla kez, aynı veya farklı satırlara eklenebilir.
+• Paketleri sürükleyerek hem satır içinde sıralayabilir hem başka satıra taşıyabilirsiniz. Bırakılan yerde diğer paketler boşluk bırakmadan uç uca yerleşir. ← / → düğmeleri seçili paketi kendi satırı içinde taşır.
+• “Tümünü sırala” aktif satırı yüklü dosyaların sırasıyla yeniden doldurur. Diğer satırlar korunur. “Paketi kaldır” yalnızca seçili paketi, “Satırı kaldır” aktif satırı ve içindeki paketleri çizelgeden kaldırır; kaynak dosyalar yüklü kalır. “Temizle” tüm satırlardaki paketleri boşaltır.
+• Grafik, istatistikler, problar ve grafik CSV aktarımı yalnızca zaman çizelgesindeki paketleri kullanır. Çizelge boşsa grafik de boştur. Dosyayı yüklemek veya dosya/kanal seçmek eğri çizmez.
+• Paket süresi, o pakete eklenen kanallar arasındaki en uzun süreye göre belirlenir (son zaman damgası + bir örnek aralığı). Sonraki paket aynı satırda tam bu noktada başlar. Kısa kanallar için veri üretilmez. Kaynakların Hz ayarları, özgün örnekleri ve çarpanları korunur; yeniden örnekleme yapılmaz. Hz veya süre düzenlenince o satırdaki sonraki paketlerin konumları otomatik güncellenir; diğer satırların zamanları değişmez.
+• “Kanal adına göre” aynı satırdaki aynı adlı kanalları devam ettirir. Adlar farklıysa “Sütun sırasına göre” birinci sütunu birinciyle, ikinciyi ikinciyle eşleştirir. Sütun sırası bütün ölçüm sütunlarına göredir. “Ayrı çizgiler” her paketi/kanalı ayrı gösterir. Farklı satırlardaki kanallar aynı isimde olsa bile birbirine birleştirilmez; renkler ve grafik etiketleri ayrı tutulur.
+• Satır içindeki ardışık iki pakette bulunan ve paket sonuna kadar süren eşleşen kanalların son/ilk örnekleri çizgiyle bağlanır. Eksik veya kısa kanalların boşlukları doldurulmaz.
+• Pakete çift tıklayarak grafiği o paketin süresine yakınlaştırın. + / − veya Ctrl+tekerlek çizelgeyi yakınlaştırır. Tekerlek satırlar arasında dikey, Shift+tekerlek yatay kaydırır. İki yöndeki kaydırma çubukları da kullanılabilir. Satır başlıkları ve zaman cetveli kaydırırken görünür kalır. “Sığdır” tüm satırları ortak süreye sığdırır. Panel sınırını sürükleyerek yüksekliği ayarlayabilirsiniz.
+• Probe, yakınlaştırma, kaydırma ve aralık seçimi kullanılabilir. CSV aktarımı her satırdaki paketlerin yeni zaman konumlarını kullanır. Aynı satırdaki eşleşen kanallar CSV'de devam eder; farklı satırlar ayrı kanal başlıklarıyla yazılır. Farklı frekanslı kanalların zaman sütunları ayrı kalır. Bağlantı çizgileri için ek ölçüm örneği oluşturulmaz.
+• Çizelge mevcut oturum içindir; uygulama kapandığında saklanmaz.
+
+
+PANEL YERLEŞİMİ
+• Kanal istatistikleri ve Problar, grafiğin altında yüksekliği korunmuş bir panelde yer alır. Grafik ile bu panel arasındaki ayırıcıyı sürükleyerek yüksekliklerini ayarlayabilirsiniz. Her iki tablo yatay ve dikey kaydırılabilir.
+• Zaman çizelgesi başlangıçta daha kısa açılır. Üst sınırını sürükleyerek yüksekliğini değiştirebilir, “Küçült” ile yalnızca başlığını bırakabilir, “Genişlet” ile yeniden açabilirsiniz. Küçültmek grafikteki verileri veya satırları değiştirmez.
+• Başlangıç pencere boyutu ekran yüksekliğine göre ayarlanır.
+
+
+SOL PANELİN TAMAMINI KAYDIRMA
+• Veri dosyaları, etiketler ve kanalların bulunduğu sol panel, yüksekliği veya genişliği yetmediğinde bütünüyle kaydırılabilir. Gerekli olduğunda dış kenarında dikey, altında yatay kaydırma çubuğu görünür.
+• Panel üzerinde fare tekerleği dikey, Shift+tekerlek yatay kaydırır. Dosya veya kanal listesinin üzerindeyken önce liste kayar; listenin sonuna gelince dış panel kaymaya devam eder.
+• Tab tuşuyla ekran dışında kalan bir alana geçildiğinde o alan otomatik görünür hale getirilir. Panelin genişliği veya pencere boyutu değiştiğinde kaydırma alanı yeniden hesaplanır.
+
+MARKA GÜNCELLEMESİ
+• Uygulama adı TraceDock, simgesi C tasarımıdır. Yeni sürümü TraceDock.exe ile açın.
+• Önceki StrainLab etiket ayarları, TraceDock ayarı henüz yoksa otomatik okunur. Eski JSON config dosyaları da yüklenebilir.
+
+
+LIQUID GLASS GÖRÜNÜMÜ
+• Açık inci tonları, cam görünümünde yuvarlak düğmeler, yumuşak renkli tablolar ve zaman çizelgesi kullanılır. Veri girişleri, bilgi/uyarı pencereleri ve TDMS ayar penceresi aynı palete uyarlanmıştır.
+• Destekleyen Windows sürümlerinde yerel cam pencere zemini ve yuvarlatılmış pencere köşeleri istenir; desteklemeyen sürümlerde açık tema kullanılır. Windows dosya seçme/kaydetme pencereleri işletim sisteminin görünümünü kullanır.
+• Sol üstteki açıklama ve donanım/kaynak bilgisi yazısı kaldırılmıştır. Paralel veri işleme devam eder.
+
+
+SAĞ TIKLA ZAMAN ÇİZELGESİNE EKLEME
+• “Dosya / kanal” sütunundaki dosya veya kanal adına sağ tıklayın. “Mevcut satıra ekle” menüsünden hedef satırı seçin veya “Yeni satıra ekle” ile yeni bir satır açıp veriyi ekleyin. Klavyeden Shift+F10 veya Menü tuşu da aynı menüyü açar.
+• Eklenen paket kendi kanal listesini saklar. Soldaki kutucukları daha sonra değiştirmek, zaman çizelgesine daha önce eklenen paketleri etkilemez. Kutucuklar, “Seçili kanalları ekle” düğmesinin ekleyeceği kanalları belirler.
+• Bir kanalın adı değiştirildiğinde mevcut paketlerdeki kanal adı da güncellenir. Frekans, süre ve çarpan düzenlemeleri o kaynağı kullanan paketlere uygulanır.
+• Çizelgeden paket/satır kaldırmak veya çizelgeyi temizlemek grafiği de günceller. Çizelge küçültülmüşken sağ tıkla paket eklemek çizelgeyi otomatik genişletir.
+
+GRAFİK FARE TUŞLARI
+• Sol sürükleme: aralık seçme. Boş alanda sol tık: seçili aralığı temizleme. Probe üzerinde sol tık: etiketi açma/kapatma.
+• Sağ sürükleme: grafiği kaydırma. Eğri üzerinde sağ tık: probe ekleme. Probe üzerinde sağ tık: probe kaldırma. Shift+sağ sürükleme: aralık seçme.
+• Bu değişiklik yalnızca grafik içindir; Dosya/Kanal sağ tık menüsü ve zaman çizelgesindeki sürükleme aynı şekilde kullanılır.
+
+Hazırlayan: Ahmet Yusuf Ozyurt
