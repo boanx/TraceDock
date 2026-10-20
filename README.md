@@ -45,10 +45,12 @@ Kaynaklar arasında otomatik frekans eşitlemesi yapılmaz. Her paket özgün ö
 | --- | --- |
 | Sol tuşla sürükle | Aralık seç |
 | Sağ tuşla sürükle | Grafiği kaydır |
-| Sağ tık | Prob ekle / kaldır |
-| Prob üzerinde sol tık | Prob etiketini aç / kapat |
+| Sol tık | Prob ekle / kaldır |
+| Prob üzerinde sağ tık | Prob etiketini aç / kapat |
 | Fare tekerleği | Yakınlaştır / uzaklaştır |
 | Orta tuşla sürükle | X / Y eksenlerini yakınlaştır |
+
+**Lejantı göster** kutusuyla grafik lejantını gizleyebilir veya açabilirsiniz. Bu seçim yakınlaştırma ve prob işlemleri sırasında korunur; PNG çıktısına da yansır. Config kaydet/yükle, lejant tercihini de saklar.
 
 Ayrıntılar: [Kullanım kılavuzu](Kullanim.txt).
 

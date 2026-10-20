@@ -24,7 +24,7 @@ KANAL VE GRAFİK ARAÇLARI
 • Dosya veya kanal adına çift tıklayarak yeniden adlandırın. “Çarpan” hücresine çift tıklayarak dosyanın tüm verilerine ya da tek kanala çarpan uygulayın. Dosya çarpanı ile kanal çarpanı birlikte çarpılır. Arama kutusu dosya, kanal ve etiketlerde arar.
 • Zaman çizelgesi geçen süre ekseninde gösterilir; grafikte gösterilecek kanal sayısını 12, 30, 100 veya tümü yapabilirsiniz.
 • Grafik üzerinde sağ sürükleme görünümü kaydırır; sol sürükleme veya Shift+sağ sürükleme span seçer. Tekerlek X/Y yakınlaştırır; orta tuş sürüklemesi eksenleri bağımsız yakınlaştırır.
-• Bir eğriye sağ tıklayıp kanal başına en fazla 5 probe ekleyin. Probe üzerinde sol tıkla etiketini açıp kapatın; sağ tıkla probe'u kaldırın. İstatistik ve probe tabloları alt sekmelerde gösterilir ve sıralanabilir.
+• Bir eğriye sol tıklayıp kanal başına en fazla 5 probe ekleyin. Probe üzerinde sağ tıkla etiketini açıp kapatın; sol tıkla probe'u kaldırın. İstatistik ve probe tabloları alt sekmelerde gösterilir ve sıralanabilir.
 • Kanal etiketleri ekleyip seçili kanallara atayın. Etiketleri filtreleme ve JSON config kaydet/yükleme desteklenir.
 
 DIŞA AKTARMA
@@ -80,8 +80,11 @@ SAĞ TIKLA ZAMAN ÇİZELGESİNE EKLEME
 • Çizelgeden paket/satır kaldırmak veya çizelgeyi temizlemek grafiği de günceller. Çizelge küçültülmüşken sağ tıkla paket eklemek çizelgeyi otomatik genişletir.
 
 GRAFİK FARE TUŞLARI
-• Sol sürükleme: aralık seçme. Boş alanda sol tık: seçili aralığı temizleme. Probe üzerinde sol tık: etiketi açma/kapatma.
-• Sağ sürükleme: grafiği kaydırma. Eğri üzerinde sağ tık: probe ekleme. Probe üzerinde sağ tık: probe kaldırma. Shift+sağ sürükleme: aralık seçme.
+• Sol sürükleme: aralık seçme. Boş alanda sol tık: seçili aralığı temizleme. Eğri üzerinde sol tık: probe ekleme; probe üzerinde sol tık: probe kaldırma.
+• Sağ sürükleme: grafiği kaydırma. Probe üzerinde sağ tık: etiketi açma/kapatma. Shift+sağ sürükleme: aralık seçme.
 • Bu değişiklik yalnızca grafik içindir; Dosya/Kanal sağ tık menüsü ve zaman çizelgesindeki sürükleme aynı şekilde kullanılır.
 
 Hazırlayan: Ahmet Yusuf Ozyurt
+
+GRAFİK LEJANTI
+• Grafik araç çubuğundaki “Lejantı göster” kutusuyla eğri adlarını açıp kapatabilirsiniz. Yakınlaştırma, prob ve yeniden çizim sırasında tercih korunur; PNG çıktısı da aynı görünümü kullanır. Config kaydet/yükle bu tercihi de saklar.

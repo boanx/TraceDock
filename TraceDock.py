@@ -416,7 +416,7 @@ def elapsed_text(seconds):
 class TraceDock(tk.Tk):
  def __init__(self):
     super().__init__(); self.title('TraceDock'); window_width=min(1500,max(1000,self.winfo_screenwidth()-60));window_height=min(920,max(620,self.winfo_screenheight()-100));self.geometry(f'{window_width}x{window_height}');self.minsize(min(1240,window_width),min(720,window_height)); self.configure(bg='#e8eff5')
-    self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Kanal adına göre');self.datasets=[]; self.active=0; self.selected=set(); self.probes={}; self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}; self.tags=[]
+    self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Kanal adına göre');self.datasets=[]; self.active=0; self.selected=set(); self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None; self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}; self.tags=[]
     icon_path=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))/'tracedock.ico'
     if icon_path.exists():
       try:self.iconbitmap(str(icon_path))
@@ -442,7 +442,7 @@ class TraceDock(tk.Tk):
     row=tk.Frame(left,bg='#f4f8fb'); row.pack(fill='x',padx=10); self.assign_combo=ttk.Combobox(row,state='readonly',values=[]); self.assign_combo.pack(side='left',fill='x',expand=True); self._button(row,'Seçililere ata',self.assign_tag).pack(side='left',padx=(5,0)); row=tk.Frame(left,bg='#f4f8fb'); row.pack(fill='x',padx=10,pady=(3,6)); self._button(row,'Config kaydet',self.save_config).pack(side='left',fill='x',expand=True); self._button(row,'Config yükle',self.load_config_dialog).pack(side='left',fill='x',expand=True,padx=(6,0))
     self._panel_title(left,'KANALLAR • DOSYAYA GÖRE'); self.filter=tk.StringVar(); ent=ttk.Entry(left,textvariable=self.filter); ent.pack(fill='x',padx=10,pady=(0,5)); ent.insert(0,''); ent.bind('<KeyRelease>',lambda e:self.render_channels()); self.chlist=tk.Frame(left,bg='#f4f8fb'); self.chlist.pack(fill='both',expand=True,padx=8,pady=(0,8));tk.Label(left,text='Çift tık: ad / Hz / süre / çarpan • Kutucuk: eklenecek kanalları seç\nSüre = örnek sayısı / Hz. Süre saniye veya HH:MM:SS.SSSS girilir.',fg='#60758a',bg='#f4f8fb',justify='left',anchor='w').pack(fill='x',padx=10,pady=(0,8))
     toolbar=tk.Frame(right,bg='#f4f8fb');toolbar.pack(fill='x',padx=12,pady=(8,4));bar=tk.Frame(toolbar,bg='#f4f8fb');bar.pack(fill='x');tk.Label(bar,text='X ekseni',fg='#526c82',bg='#f4f8fb').pack(side='left');self.xcombo=ttk.Combobox(bar,state='readonly',width=16,values=[]);self.xcombo.pack(side='left',padx=(5,8));self.xcombo.bind('<<ComboboxSelected>>',lambda e:self.redraw());tk.Label(bar,text='Eğri',fg='#526c82',bg='#f4f8fb').pack(side='left');self.limit=ttk.Combobox(bar,state='readonly',width=6,values=['12','30','100','Tümü']);self.limit.set('Tümü');self.limit.pack(side='left',padx=4);self.limit.bind('<<ComboboxSelected>>',lambda e:self.redraw());tk.Label(bar,text='Ondalık',fg='#526c82',bg='#f4f8fb').pack(side='left',padx=(5,2));self.decimal=ttk.Combobox(bar,state='readonly',width=3,values=('.',','));self.decimal.set('.');self.decimal.pack(side='left');self.decimal.bind('<<ComboboxSelected>>',lambda e:(self.redraw(preserve_view=True) if self.datasets else None));self._button(bar,'Tümünü göster',self.reset_zoom).pack(side='left',padx=(9,2));self._button(bar,'Seçili aralığı temizle',self.clear_span).pack(side='left',padx=2);self._button(bar,'Probe temizle',self.clear_probes).pack(side='left',padx=2)
-    bar2=tk.Frame(toolbar,bg='#f4f8fb');bar2.pack(fill='x',pady=(4,0));self._button(bar2,'Grafik CSV',self.export_graph_csv).pack(side='left',padx=(0,4));self._button(bar2,"Seçili aralığı CSV'ye aktar",self.export_span_csv).pack(side='left',padx=4);self._button(bar2,'İstatistik CSV',self.export_stats_csv).pack(side='left',padx=4);self._button(bar2,'Grafik PNG',self.export_graph_png).pack(side='left',padx=4);self.coords=tk.StringVar(value='X = —    Y = —');tk.Label(bar2,textvariable=self.coords,fg='#203449',bg='#eef5fa',font=('Segoe UI',9,'bold'),padx=5,pady=2).pack(side='right');bar3=tk.Frame(toolbar,bg='#f4f8fb');bar3.pack(fill='x',pady=(3,0));tk.Label(bar3,text='Tekerlek: zoom • Orta tuş sürükle: yatay X / dikey Y zoom • Sol sürükle: span seç • Sağ sürükle: kaydır • Sağ tık: probe ekle/sil • Probe üstünde sol tık: etiketi aç/kapat',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=2)
+    bar2=tk.Frame(toolbar,bg='#f4f8fb');bar2.pack(fill='x',pady=(4,0));self._button(bar2,'Grafik CSV',self.export_graph_csv).pack(side='left',padx=(0,4));self._button(bar2,"Seçili aralığı CSV'ye aktar",self.export_span_csv).pack(side='left',padx=4);self._button(bar2,'İstatistik CSV',self.export_stats_csv).pack(side='left',padx=4);self._button(bar2,'Grafik PNG',self.export_graph_png).pack(side='left',padx=4);self.coords=tk.StringVar(value='X = —    Y = —');tk.Label(bar2,textvariable=self.coords,fg='#203449',bg='#eef5fa',font=('Segoe UI',9,'bold'),padx=5,pady=2).pack(side='right');bar3=tk.Frame(toolbar,bg='#f4f8fb');bar3.pack(fill='x',pady=(3,0));ttk.Checkbutton(bar3,text='Lejantı göster',variable=self.legend_visible,command=self._toggle_legend).pack(side='right',padx=(8,0));tk.Label(bar3,text='Sol tık: prob ekle/sil • Sağ tık: prob etiketi • Sol sürükle: aralık • Sağ sürükle: kaydır • Tekerlek / orta tuş: zoom',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=2)
     self.graph_panels=tk.PanedWindow(right,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.graph_panels.pack(fill='both',expand=True,padx=10,pady=(0,8));plotbox=tk.Frame(self.graph_panels,bg='#f4f8fb');self.graph_panels.add(plotbox,minsize=120,stretch='always'); self.fig=Figure(figsize=(9,5),dpi=100,facecolor='#f4f8fb');self.ax=self.fig.add_subplot(111);self.ax.set_facecolor('#ffffff');self.fig.subplots_adjust(left=.09,right=.985,top=.97,bottom=.12);self.canvas=FigureCanvasTkAgg(self.fig,master=plotbox);self.canvas.get_tk_widget().pack(fill='both',expand=True);self.canvas.mpl_connect('motion_notify_event',self.on_motion);self.canvas.mpl_connect('button_press_event',self.on_press);self.canvas.mpl_connect('button_release_event',self.on_release);self.canvas.mpl_connect('scroll_event',self.on_scroll)
     measurements=tk.Frame(self.graph_panels,bg='#f4f8fb',height=170);measurements.pack_propagate(False);self.graph_panels.add(measurements,minsize=145,height=170,stretch='never');self.tables=ttk.Notebook(measurements);self.tables.pack(fill='both',expand=True,padx=4,pady=4);stats_tab=tk.Frame(self.tables,bg='#f4f8fb');probe_tab=tk.Frame(self.tables,bg='#f4f8fb');self.tables.add(stats_tab,text='Kanal istatistikleri');self.tables.add(probe_tab,text='Problar');cols=('channel','start','end','min','max');self.table=ttk.Treeview(stats_tab,columns=cols,show='headings',height=4);labels=['Kanal','Başlangıç','Bitiş','Minimum','Maksimum'];widths=[280,150,150,150,150]
     for c,l,w in zip(cols,labels,widths):self.table.heading(c,text=l,command=lambda col=c:self.sort_tree(self.table,col));self.table.column(c,width=w,anchor='w' if c=='channel' else 'e')
@@ -1095,11 +1095,15 @@ class TraceDock(tk.Tk):
     self.ax.set_xlabel('Geçen süre (HH:MM:SS.SSSS)' if elapsed else self.xcombo.get(),color='#526c82');self.ax.set_ylabel('Değer',color='#526c82')
     self.ax.xaxis.set_major_formatter(FuncFormatter(lambda val,pos:elapsed_text(val) if elapsed else self._number(val)));self.ax.yaxis.set_major_formatter(FuncFormatter(lambda val,pos:self._number(val)))
     self.span_artist=self.ax.axvspan(*self.span,color='#007f85',alpha=.16,zorder=0) if self.span else None
-    self.ax.legend(loc='upper left',facecolor='#f4f8fb',edgecolor='#cbdbe7',labelcolor='#203449',fontsize=8,ncol=2)
+    legend=self.ax.legend(loc='upper left',facecolor='#f4f8fb',edgecolor='#cbdbe7',labelcolor='#203449',fontsize=8,ncol=2);legend.set_visible(self.legend_visible.get())
     self.cursor_x=self.ax.axvline(0,color='#608ca1',lw=.8,ls='--',visible=False,animated=True);self.cursor_y=self.ax.axhline(0,color='#608ca1',lw=.8,ls='--',visible=False,animated=True)
     if self._timeline_active() and not view:self.ax.set_xlim(0,max(self._timeline_duration(),1e-9))
     if view:self.ax.set_xlim(*view[0]);self.ax.set_ylim(*view[1])
     self._draw_guides();self.ax.callbacks.connect('xlim_changed',lambda ax:self._schedule_detail());self.canvas.draw_idle();self._update_tables()
+ def _toggle_legend(self):
+    legend=self.ax.get_legend()
+    if legend is not None:legend.set_visible(self.legend_visible.get())
+    self._background=None;self.canvas.draw_idle()
  def _schedule_detail(self):
     self._background=None
     if self._lod_after is None:self._lod_after=self.after(60,self._refresh_detail)
@@ -1149,26 +1153,21 @@ class TraceDock(tk.Tk):
     if getattr(self,'span_artist',None):self.span_artist.remove()
     self.span_artist=self.ax.axvspan(self.span[0],self.span[1],color='#007f85',alpha=.16,zorder=0);self.status.set(f'Seçili aralık: {self._number(self.span[0])} — {self._number(self.span[1])}');self.canvas.draw_idle()
  def on_press(self,e):
-    if e.button==1:
-      hit=self._nearest_probe(e)
-      if hit:
-        n,j=hit;self.probes[n][j]['label']=not self.probes[n][j]['label'];self.status.set(f'{self._key_label(n)} P{j+1} etiketi '+('gösteriliyor' if self.probes[n][j]['label'] else 'gizlendi'));self.redraw(preserve_view=True)
-      elif e.inaxes:
-        self.drag_mode='span';self.drag_start=(e.x,e.y,self.ax.get_xlim(),self.ax.get_ylim());self.click_start=(e.x,e.y,self._span_generation,'span',e.xdata,e.ydata)
-      return
-    if e.inaxes and e.button==3:
-      mode='span' if e.key and 'shift' in str(e.key).lower() else 'pan';self.drag_mode=mode;self.drag_start=(e.x,e.y,self.ax.get_xlim(),self.ax.get_ylim());self.click_start=(e.x,e.y,self._span_generation,mode,e.xdata,e.ydata)
-    elif e.inaxes and e.button==2:self.drag_mode='axis_zoom';self.drag_start=(e.x,e.y,self.ax.get_xlim(),self.ax.get_ylim())
+    if not e.inaxes:return
+    if e.button in (1,3):
+      mode='span' if e.button==1 or (e.key and 'shift' in str(e.key).lower()) else 'pan';self._graph_button=e.button;self.drag_mode=mode;self.drag_start=(e.x,e.y,self.ax.get_xlim(),self.ax.get_ylim());self.click_start=(e.x,e.y,self._span_generation,mode,e.xdata,e.ydata)
+    elif e.button==2:self._graph_button=2;self.drag_mode='axis_zoom';self.drag_start=(e.x,e.y,self.ax.get_xlim(),self.ax.get_ylim())
  def on_release(self,e):
-    if e.button==3 and self.click_start:
-      start=self.click_start;self.click_start=None;self.drag_mode=None;self.drag_start=None
-      if start[3]=='span' and e.inaxes and abs(e.x-start[0])>=5 and abs(e.y-start[1])>=5 and start[4] is not None and e.xdata is not None:self.on_span(start[4],e.xdata)
-      elif abs(e.x-start[0])<5 and abs(e.y-start[1])<5 and e.inaxes:self.after_idle(lambda:self._finish_click(e,start[2]))
-    elif e.button==1 and self.click_start:
-      start=self.click_start;self.click_start=None;self.drag_mode=None;self.drag_start=None
-      if start[3]=='span' and e.inaxes and abs(e.x-start[0])>=5 and start[4] is not None and e.xdata is not None:self.on_span(start[4],e.xdata)
-      elif abs(e.x-start[0])<5 and abs(e.y-start[1])<5 and self.span is not None:self.clear_span()
-    elif e.button==2:self.drag_mode=None;self.drag_start=None
+    if e.button in (1,3) and self.click_start and self._graph_button==e.button:
+      start=self.click_start;self.click_start=None;self.drag_mode=None;self.drag_start=None;self._graph_button=None;dx=abs(e.x-start[0]);dy=abs(e.y-start[1])
+      if start[3]=='span' and e.inaxes and dx>=5 and start[4] is not None and e.xdata is not None:self.on_span(start[4],e.xdata)
+      elif dx<5 and dy<5 and e.inaxes:
+        if e.button==1:self.after_idle(lambda:self._finish_click(e,start[2]))
+        else:
+          hit=self._nearest_probe(e)
+          if hit:
+            name,index=hit;probe=self.probes[name][index];probe['label']=not probe['label'];self.status.set(f'{self._key_label(name)} P{index+1} etiketi '+('gösteriliyor' if probe['label'] else 'gizlendi'));self.redraw(preserve_view=True)
+    elif e.button==2 and self._graph_button==2:self._graph_button=None;self.drag_mode=None;self.drag_start=None
  def _finish_click(self,e,generation):
     if generation!=self._span_generation or not e.inaxes or not getattr(self,'_line_data',None):return
     hit=self._nearest_probe(e)
@@ -1187,7 +1186,8 @@ class TraceDock(tk.Tk):
     if best:
       n=best[1];items=self.probes.setdefault(n,[])
       if len(items)>=5:self.status.set(f'{self._key_label(n)} için en fazla 5 probe eklenebilir.');return
-      items.append({'index':best[2],'label':True});self.status.set(f'{self._key_label(n)} kanalına P{len(items)} probe eklendi');self.redraw(preserve_view=True)
+      items.append({'index':best[2],'label':True});self.status.set(f'{self._key_label(n)} kanalına P{len(items)} probe eklendi');self.redraw(preserve_view=True);return
+    if self.span is not None:self.clear_span()
  def _nearest_probe(self,e,threshold=13):
     if not e.inaxes:return None
     nearest=None;distance=threshold
@@ -1293,7 +1293,7 @@ class TraceDock(tk.Tk):
       self.status.set(f'{len(items)} kanal istatistiği dışa aktarıldı • {Path(p).name}')
     except Exception as exc:messagebox.showerror('CSV dışa aktarılamadı',str(exc))
  def save_config(self):
-    payload={'format':'TraceDock-config-v1','tags':self.tags,'channel_tags':{name:tag for d in self.datasets for name,tag in d.get('tags',{}).items()},'files':{d['name']:d.get('tags',{}) for d in self.datasets}}
+    payload={'format':'TraceDock-config-v1','view':{'legend_visible':self.legend_visible.get()},'tags':self.tags,'channel_tags':{name:tag for d in self.datasets for name,tag in d.get('tags',{}).items()},'files':{d['name']:d.get('tags',{}) for d in self.datasets}}
     path=filedialog.asksaveasfilename(title='Config kaydet',defaultextension='.json',initialfile='tracedock-config.json',filetypes=[('JSON config','*.json')])
     if not path:return
     try:
@@ -1305,7 +1305,7 @@ class TraceDock(tk.Tk):
     path=filedialog.askopenfilename(title='Config dosyası yükle',filetypes=[('JSON config','*.json'),('Tüm dosyalar','*.*')])
     if not path:return
     try:
-      payload=json.loads(Path(path).read_text(encoding='utf-8-sig'));self._saved_cfg=payload;self.tags=list(dict.fromkeys(self.tags+payload.get('tags',[])))
+      payload=json.loads(Path(path).read_text(encoding='utf-8-sig'));self._saved_cfg=payload;self.tags=list(dict.fromkeys(self.tags+payload.get('tags',[])));self.legend_visible.set(bool(payload.get('view',{}).get('legend_visible',self.legend_visible.get())))
       for d in self.datasets:self._apply_saved_tags(d)
       self.redraw_all();self.status.set(f'Config yüklendi: {Path(path).name}')
     except Exception as exc:messagebox.showerror('Config yüklenemedi',str(exc),parent=self)
@@ -1317,7 +1317,7 @@ class TraceDock(tk.Tk):
     try:
       source=CONFIG_PATH if CONFIG_PATH.exists() else LEGACY_CONFIG_PATH
       if source.exists():
-        self._saved_cfg=json.loads(source.read_text(encoding='utf-8-sig'));self.tags=list(self._saved_cfg.get('tags',[]))
+        self._saved_cfg=json.loads(source.read_text(encoding='utf-8-sig'));self.tags=list(self._saved_cfg.get('tags',[]));self.legend_visible.set(bool(self._saved_cfg.get('view',{}).get('legend_visible',True)))
       else:self._saved_cfg={}
     except Exception:self._saved_cfg={}
 def verify_runtime_workers(report_path,input_path):
