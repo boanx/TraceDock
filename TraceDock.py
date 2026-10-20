@@ -269,6 +269,19 @@ def build_channel_cache(values,cancel=None):
 def prepare_dataset(d,progress=None,cancel=None):
     d.setdefault('uid',uuid.uuid4().hex)
     if '_base_channels' not in d:d['_base_channels']=dict(d['channels'])
+    # Rectangular CSV/TDMS tables pad shorter channels with non-finite cells.
+    # Those cells are not acquired samples and must not extend a timeline clip.
+    # Keep leading/interior gaps and all finite values (including zero).
+    d['_trailing_padding']={}
+    for name,values in d['_base_channels'].items():
+        stop=len(values)
+        while stop:
+            check_cancel(cancel);start=max(0,stop-65536);finite=np.isfinite(values[start:stop])
+            if np.any(finite):
+                stop=start+len(finite)-int(np.argmax(finite[::-1]));break
+            stop=start
+        d['_trailing_padding'][name]=len(values)-stop
+        if stop<len(values):d['_base_channels'][name]=values[:stop]
     d.setdefault('_selected',set(list(d['channels'])[:6]));base_x=d.get('_base_x',d.get('x',[]))
     if not isinstance(base_x,SampleTimeAxis):base_x=np.asarray(base_x,dtype=float)
     rate=d.get('_base_rate') or d.get('grid_rate')
@@ -399,7 +412,7 @@ def elapsed_text(seconds):
 class TraceDock(tk.Tk):
  def __init__(self):
     super().__init__(); self.title('TraceDock'); window_width=min(1500,max(1000,self.winfo_screenwidth()-60));window_height=min(920,max(620,self.winfo_screenheight()-100));self.geometry(f'{window_width}x{window_height}');self.minsize(min(1240,window_width),min(720,window_height)); self.configure(bg='#e8eff5')
-    self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Seçili kanal sırasına göre');self.datasets=[]; self.active=0; self.selected=set();self._tree_anchor=None; self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None;self._channel_axes={};self._track_axes={};self._y_axes={};self._reset_axis_slots=set();self._legend_artist=None;self._legend_targets=[];self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}
+    self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Kanal adına göre');self.datasets=[]; self.active=0; self.selected=set();self._tree_anchor=None; self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None;self._channel_axes={};self._track_axes={};self._y_axes={};self._reset_axis_slots=set();self._legend_artist=None;self._legend_targets=[];self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}
     icon_path=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))/'tracedock.ico'
     if icon_path.exists():
       try:self.iconbitmap(str(icon_path))
@@ -1045,7 +1058,7 @@ class TraceDock(tk.Tk):
     if new is None or not new.strip() or new.strip()==old:return
     new=new.strip()
     if new in d['channels']:messagebox.showwarning('Kanal adı kullanılıyor',f'“{new}” adlı kanal zaten var.',parent=self);return
-    for field in ('channels','units','ids','_base_channels','multipliers','channel_rates','sample_rates','_channel_x','_base_stats','_envelopes'):
+    for field in ('channels','units','ids','_base_channels','multipliers','channel_rates','sample_rates','_channel_x','_base_stats','_envelopes','_trailing_padding'):
       if old in d.get(field,{}):d[field]={new if key==old else key:value for key,value in d[field].items()}
     axis_key=(d['uid'],old)
     if axis_key in self._channel_axes:self._channel_axes[(d['uid'],new)]=self._channel_axes.pop(axis_key)
