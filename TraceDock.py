@@ -78,25 +78,6 @@ class SampleTimeAxis(NumericView):
             while idx>0 and self[idx-1]>value:idx-=1
         return idx
 
-class OffsetTimeAxis(NumericView):
-    """Shift a source clock without copying its samples."""
-    def __init__(self,base,offset):self.base=base;self.offset=float(offset)
-    def __len__(self):return len(self.base)
-    def __array__(self,dtype=None,copy=None):
-        values=np.asarray(self.base)+self.offset
-        return values.astype(dtype,copy=False) if dtype is not None else values
-    def __getitem__(self,key):
-        if isinstance(key,slice):return OffsetTimeAxis(self.base[key],self.offset)
-        return self.base[key]+self.offset
-    def searchsorted(self,value,side='left'):
-        # Compare in the shifted domain to keep exact boundary samples inclusive.
-        lo=0;hi=len(self)
-        while lo<hi:
-            mid=(lo+hi)//2
-            if self[mid]<value or (side=='right' and self[mid]==value):lo=mid+1
-            else:hi=mid
-        return lo
-
 class JoinedValues(NumericView):
     """A sequence of source views; export materializes only requested chunks."""
     def __init__(self,parts):
@@ -576,7 +557,9 @@ class TraceDock(tk.Tk):
         if clip.get('row_uid',self.timeline_rows[0]['uid'])!=row['uid']:continue
         d=sources.get(clip['dataset_uid'])
         if d is None:continue
-        duration=max((float(d['_channel_x'][n][-1])+1/d['channel_rates'][n] for n in self._clip_channels(clip,d) if len(d['channels'][n])),default=0.)
+        # Timeline timing follows the editable N/Hz duration, not source timestamps
+        # that may contain pauses, jitter or a clock restart within an acquisition.
+        duration=max((len(d['channels'][n])/d['channel_rates'][n] for n in self._clip_channels(clip,d)),default=0.)
         result.append((clip,d,start,start+duration));start+=duration
     return result
  def _timeline_duration(self):return max((end for clip,d,start,end in self._timeline_layout()),default=0.)
@@ -1101,7 +1084,7 @@ class TraceDock(tk.Tk):
         if name not in names:continue
         key=('clip:'+clip['uid'],name);channel_track=name if policy=='Kanal adına göre' else column if policy=='Sütun sırasına göre' else key;track=(row_uid,channel_track)
         if track not in tracks and len(tracks)>=limit:continue
-        tracks.add(track);clock=OffsetTimeAxis(d['_channel_x'][name],start);channel_label=f'Sütun {column+1} / {name}' if policy=='Sütun sırasına göre' else name if policy=='Kanal adına göre' else f"{d['name']} / {name} [Paket {ci+1}]"
+        tracks.add(track);clock=SampleTimeAxis(len(y),d['channel_rates'][name],origin=start);channel_label=f'Sütun {column+1} / {name}' if policy=='Sütun sırasına göre' else name if policy=='Kanal adına göre' else f"{d['name']} / {name} [Paket {ci+1}]"
         series.append({'key':key,'name':name,'dataset':d,'label':f"{row['name']} / {d['name']} / {name} [Paket {ci+1}]",'x':clock,'time':clock,'y':y,'track':track,'track_label':f"{row['name']} / {channel_label}",'row_uid':row_uid,'clip_index':ci,'clip_start':start,'clip_end':end})
     return series
  def _axis_slot(self,entry):
@@ -1225,7 +1208,7 @@ class TraceDock(tk.Tk):
         index=probe['index']
         if index>=len(x) or not np.isfinite(x[index]) or not np.isfinite(y[index]):continue
         axis.plot([x[index]],[y[index]],marker='o',ms=8,markerfacecolor='none',markeredgecolor=color,mew=1.5,zorder=9)
-        if probe['label']:axis.annotate(f"P{probe_no}  {self._number(y[index])}",(x[index],y[index]),xytext=(8,10),textcoords='offset points',color='#203449',fontsize=8,fontweight='bold',bbox=dict(boxstyle='round,pad=.3',facecolor='#eef5fa',edgecolor=color,alpha=.96),zorder=10)
+        if probe['label']:axis.annotate(f"P{probe_no}  X: {elapsed_text(x[index])}\nY: {self._number(y[index])}",(x[index],y[index]),xytext=(8,10),textcoords='offset points',color='#203449',fontsize=8,fontweight='bold',bbox=dict(boxstyle='round,pad=.3',facecolor='#eef5fa',edgecolor=color,alpha=.96),zorder=10)
     self.ax.set_xlabel('Geçen süre (HH:MM:SS.SSSS)' if elapsed else self.xcombo.get(),color='#526c82');self.ax.xaxis.set_major_formatter(FuncFormatter(lambda value,pos:elapsed_text(value) if elapsed else self._number(value)))
     self.span_artist=self.ax.axvspan(*self.span,color='#007f85',alpha=.16,zorder=0) if self.span else None;top_axis=list(self._y_axes.values())[-1];self._cursor_axis=top_axis
     legend=top_axis.legend([item[0] for item in legend_entries],[item[1] for item in legend_entries],loc='upper left',facecolor='#f4f8fb',edgecolor='#cbdbe7',labelcolor='#203449',fontsize=8,ncol=2);self._legend_artist=legend;legend.set_visible(self.legend_visible.get());self._legend_targets=[(artist,entry[2]) for artist,entry in zip(legend.get_texts(),legend_entries)]+[(artist,entry[2]) for artist,entry in zip(legend.legend_handles,legend_entries)]
@@ -1364,7 +1347,7 @@ class TraceDock(tk.Tk):
  def _update_tables(self):
     for item in self.table.get_children():self.table.delete(item)
     for item in self.probe_table.get_children():self.probe_table.delete(item)
-    for entry in self._plot_series():
+    for entry in self._series_map.values():
       d=entry['dataset'];name=entry['name'];y=entry['y'];x=entry['x'];key=entry['key'];first,last,low,high=d['_base_stats'][name]
       if first is not None:
         factor=float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1));minimum,maximum=sorted((low*factor,high*factor))
