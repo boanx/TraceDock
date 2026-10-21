@@ -3,6 +3,7 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 & $Python -m PyInstaller --noconfirm --onefile --windowed --name TraceDock `
     --icon (Join-Path $projectRoot "tracedock.ico") `
+    --manifest (Join-Path $projectRoot "TraceDock.manifest") `
     --add-data "$(Join-Path $projectRoot 'tracedock.ico');." `
     --add-data "$(Join-Path $projectRoot 'tracedock.png');." `
     --version-file (Join-Path $projectRoot "version-info.txt") `

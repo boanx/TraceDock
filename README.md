@@ -126,3 +126,14 @@ Pencere büyütülüp küçültüldüğünde sol panel, grafik, istatistik/prob 
 Kanal, istatistik, prob, TDMS ayarları ve Y eksenleri tablolarında sütunlar başlık ve hücre metinlerine göre genişler. İçerik pencereye sığmazsa yatay/dikey kaydırma çubukları otomatik görünür. Shift+fare tekerleği tabloyu yatay kaydırır. Uzun dosya adları ve dar araç çubukları da yatay kaydırılabilir.
 
 TDMS, Y eksenleri ve bilgi/giriş pencereleri ekran ve ana pencere boyutuna göre açılır; yeniden boyutlandırılabilir.
+
+
+## 21 Ekim 2026 — Kompakt düğmeler ve ekran ölçeği
+
+- Aktarma düğmeleri tek yatay sırada kalır; panel daralınca yatay kaydırma çubuğu görünür. Grafik CSV, seçili aralık CSV, istatistik CSV ve grafik PNG işlevleri korunur.
+- Veri dosyası düğmeleri paneli dolduracak şekilde uzamaz; aynı uyarlanabilir satır düzenini kullanır. Dosya listesi kayıt sayısına göre1–4 satırdır; fazlası kaydırılır.
+- `tracedock_dpi.py` Tk penceresi açılmadan Windows Per Monitor V2 farkındalığı ister. Monitör değişince pencere DPI'sı izlenir; Tk fontları, özel düğmeler ve tablo sütun ölçümleri yenilenir. Matplotlib'in kendi piksel oranı ayrıca çarpılmaz.
+- `build.ps1`, `TraceDock.manifest` dosyasını EXE'ye gömer. Bu manifest DPI sanallaştırmasının neden olabileceği bitmap bulanıklığını engellemeyi amaçlar. Laptop/harici monitör keskinliği bu değişiklikle henüz fiziksel olarak doğrulanmadı; panel çözünürlüğü veya Windows metin işleme etkileri için sonuç gözlenmeli.
+- v1.0.9 EXE bu düzeni ve DPI bildirimini içerir. Farklı fiziksel ekranlardaki keskinlik henüz doğrulanmadı.
+
+Sol panel başlangıçta pencere genişliğinin yaklaşık %24’ünü kullanır; ayırıcıyla oran değiştirilebilir. Panel içeriği mevcut genişliğe uyar, uzun kanal metinleri tablonun kendi kaydırma çubuğuyla okunur. Gömülü Matplotlib grafiği monitör değişiminde piksel oranını yeniden hesaplar.

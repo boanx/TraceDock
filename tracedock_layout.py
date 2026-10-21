@@ -23,6 +23,7 @@ class AdaptiveTreeview(ttk.Treeview):
         self._bold_font = self._font.copy()
         self._bold_font.configure(weight='bold')
         self.bind('<Configure>', lambda event: self._schedule_fit(), add='+')
+        self.bind('<<DisplayScaleChanged>>', lambda event: self._schedule_fit(True), add='+')
         self.bind('<Shift-MouseWheel>', self._horizontal_wheel, add='+')
         self.bind('<Destroy>', self._destroy_fit, add='+')
         self._schedule_fit()
@@ -131,6 +132,46 @@ class ResponsivePanedWindow(tk.PanedWindow):
         second = int(self.panecget(panes[1], 'minsize'))
         position = max(first, min(size-second-int(self.cget('sashwidth')), round(size*self.fraction)))
         self.sash_place(0, 0 if vertical else position, position if vertical else 0)
+
+
+class ResponsiveButtonBar(tk.Frame):
+    """Keep buttons content-sized and wrap them to the available panel width."""
+    def __init__(self, parent, gap=6, **kwargs):
+        super().__init__(parent, **kwargs)
+        self._buttons = []
+        self._gap = gap
+        self._pending = None
+        self.bind('<Configure>', self._schedule, add='+')
+        self.bind('<<DisplayScaleChanged>>', self._schedule, add='+')
+        self.bind('<Destroy>', self._destroy_layout, add='+')
+
+    def add(self, button):
+        self._buttons.append(button)
+        self._schedule()
+
+    def _schedule(self, event=None):
+        if self._pending is None:
+            self._pending = self.after_idle(self._layout)
+
+    def _layout(self):
+        self._pending = None
+        width = max(1, self.winfo_width())
+        x = y = row_height = 0
+        for button in self._buttons:
+            natural = button.winfo_reqwidth()
+            height = button.winfo_reqheight()
+            if x and x + natural > width:
+                y += row_height + 4
+                x = row_height = 0
+            button.place(x=x, y=y, width=min(natural, width), height=height)
+            x += natural + self._gap
+            row_height = max(row_height, height)
+        self.configure(height=y + row_height + 4)
+
+    def _destroy_layout(self, event):
+        if event.widget is self and self._pending is not None:
+            self.after_cancel(self._pending)
+            self._pending = None
 
 
 class HorizontalScrollFrame(tk.Frame):

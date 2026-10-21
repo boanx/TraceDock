@@ -118,3 +118,8 @@ Pencere büyütülüp küçültüldüğünde sol panel, grafik, istatistik/prob 
 Kanal, istatistik, prob, TDMS ayarları ve Y eksenleri tablolarında sütunlar başlık ve hücre metinlerine göre genişler. İçerik pencereye sığmazsa yatay/dikey kaydırma çubukları otomatik görünür. Shift+fare tekerleği tabloyu yatay kaydırır. Uzun dosya adları ve dar araç çubukları da yatay kaydırılabilir.
 
 TDMS, Y eksenleri ve bilgi/giriş pencereleri ekran ve ana pencere boyutuna göre açılır; yeniden boyutlandırılabilir.
+
+KOMPAKT PANEL VE EKRAN ÖLÇEĞİ
+• Aktarma düğmeleri yan yana tek sıradadır; sığmadığında yatay kaydırılır.
+• Veri dosyaları paneli başlangıçta genişliğin yaklaşık %24’ünü alır. Dosya düğmeleri içerik genişliğinde ve daha dar boşluklarla çizilir; dar alanda alt satıra geçebilir. Panel genişliği ayırıcıyla değiştirilebilir.
+• Windows Per Monitor V2 DPI bildirimi EXE içine gömülüdür. Monitör değiştiğinde fontlar, tablo sütunları, düğmeler ve gömülü grafiğin piksel oranı güncellenir. Bu değişiklik farklı fiziksel ekranlarda henüz doğrulanmadı.
