@@ -137,3 +137,9 @@ TDMS, Y eksenleri ve bilgi/giriş pencereleri ekran ve ana pencere boyutuna gör
 - v1.0.9 EXE bu düzeni ve DPI bildirimini içerir. Farklı fiziksel ekranlardaki keskinlik henüz doğrulanmadı.
 
 Sol panel başlangıçta pencere genişliğinin yaklaşık %24’ünü kullanır; ayırıcıyla oran değiştirilebilir. Panel içeriği mevcut genişliğe uyar, uzun kanal metinleri tablonun kendi kaydırma çubuğuyla okunur. Gömülü Matplotlib grafiği monitör değişiminde piksel oranını yeniden hesaplar.
+
+
+## Monitörler arasında tutarlı ölçek (v1.0.10)
+
+Fontların asıl punto değerleri saklanır; her monitörde DPI değerinden yeniden hesaplanan piksel boyutları kullanılır. Başlıklar, etiketler, girişler, düğmeler ve ttk stilleri aynı font sistemini paylaşır. Tablo sütunları gerçek hücre ve başlık fontlarıyla ölçülür. Zaman çizelgesinin satırları, sol başlık alanı ve sürükleme/tıklama koordinatları aynı ölçekle çizilir. Aktarma düğmeleri tek sırada kalır; dar alanda yatay kaydırılır.
+İki fiziksel monitör arasında geçiş bu geliştirme sırasında doğrulanmadı; EXE paketlemesi ve ayrık imza doğrulaması işlev testi değildir.

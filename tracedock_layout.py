@@ -1,6 +1,7 @@
 """Responsive panels and tables with content-sized, scrollable columns."""
 import tkinter as tk
 from tkinter import ttk, font as tkfont
+from tracedock_dpi import ui_font, display_fonts
 
 
 class AutoScrollbar(ttk.Scrollbar):
@@ -19,9 +20,8 @@ class AdaptiveTreeview(ttk.Treeview):
         self._fit_pending = None
         self._content_dirty = True
         self._natural_widths = {}
-        self._font = tkfont.nametofont('TkDefaultFont').copy()
-        self._bold_font = self._font.copy()
-        self._bold_font.configure(weight='bold')
+        self._font = ui_font(self,9)
+        self._bold_font = ui_font(self,9,'bold')
         self.bind('<Configure>', lambda event: self._schedule_fit(), add='+')
         self.bind('<<DisplayScaleChanged>>', lambda event: self._schedule_fit(True), add='+')
         self.bind('<Shift-MouseWheel>', self._horizontal_wheel, add='+')
@@ -67,7 +67,8 @@ class AdaptiveTreeview(ttk.Treeview):
         if 'tree' in tuple(map(str, self.tk.splitlist(self.cget('show')))):
             columns.insert(0, '#0')
         if self._content_dirty:
-            widths = {col: max(60, self._bold_font.measure(self.heading(col, 'text')) + 28) for col in columns}
+            scale=display_fonts(self).dpi/96;p=lambda value:round(value*scale)
+            widths = {col: max(p(60), self._bold_font.measure(self.heading(col, 'text')) + p(28)) for col in columns}
             pending = [(item, 0) for item in self.get_children()]
             measured = {}
             def measure(value, bold=False):
@@ -80,9 +81,9 @@ class AdaptiveTreeview(ttk.Treeview):
                 item, depth = pending.pop()
                 data = super().item(item)
                 if '#0' in widths:
-                    widths['#0'] = max(widths['#0'], measure(data['text'], True) + 52 + depth*20)
+                    widths['#0'] = max(widths['#0'], measure(data['text'], True) + p(52) + depth*p(20))
                 for col, value in zip(self['columns'], data['values']):
-                    widths[col] = max(widths[col], measure(value) + 28)
+                    widths[col] = max(widths[col], measure(value,'dataset' in data['tags']) + p(28))
                 pending.extend((child, depth+1) for child in self.get_children(item))
             self._natural_widths = widths
             self._content_dirty = False

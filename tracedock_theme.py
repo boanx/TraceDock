@@ -5,6 +5,7 @@ import sys
 import tkinter as tk
 from tkinter import ttk, font as tkfont, messagebox as native_messages, simpledialog as native_inputs
 from tracedock_layout import size_dialog
+from tracedock_dpi import ui_font, display_fonts
 
 BG='#e8eff5'
 SURFACE='#f4f8fb'
@@ -40,14 +41,15 @@ def apply_native_glass(window):
 class GlassButton(tk.Canvas):
     def __init__(self,parent,text,command,**kwargs):
         self._text=text;self._command=command;self._enabled=True;self._hover=False;self._pressed=False;self._pad_y=7;self._pad_x=24
-        self._font=tkfont.Font(root=parent,family='Segoe UI',size=9)
+        self._font=ui_font(parent,9)
         super().__init__(parent,bg=parent.cget('background'),highlightthickness=0,bd=0,takefocus=True,cursor='hand2',**kwargs)
         self._size()
         self.bind('<<DisplayScaleChanged>>',lambda e:(self._size(),self._paint()));self.bind('<Configure>',lambda e:self._paint());self.bind('<Enter>',lambda e:self._state(hover=True));self.bind('<Leave>',lambda e:self._state(hover=False,pressed=False))
         self.bind('<ButtonPress-1>',self._press);self.bind('<ButtonRelease-1>',self._release)
         self.bind('<Return>',lambda e:(self.invoke(),'break')[1]);self.bind('<space>',lambda e:(self.invoke(),'break')[1]);self.bind('<FocusIn>',lambda e:self._paint());self.bind('<FocusOut>',lambda e:self._paint())
     def _size(self):
-        super().configure(width=self._font.measure(self._text)+self._pad_x,height=self._font.metrics('linespace')+2*self._pad_y+4)
+        scale=display_fonts(self).dpi/96
+        super().configure(width=self._font.measure(self._text)+round(self._pad_x*scale),height=self._font.metrics('linespace')+round((2*self._pad_y+4)*scale))
     def configure(self,cnf=None,**kwargs):
         if cnf is not None:
             if not isinstance(cnf,dict):return super().configure(cnf,**kwargs)
@@ -101,11 +103,11 @@ def glass_dialog(title,message,parent=None,initialvalue=None,input_mode=False,qu
         except tk.TclError:pass
     result={'value':False if question else None}
     card=tk.Frame(win,bg=SURFACE,highlightbackground='#ffffff',highlightthickness=1);card.pack(fill='both',expand=True,padx=14,pady=14)
-    tk.Label(card,text=title,font=('Segoe UI',13,'bold'),fg=TEXT,bg=SURFACE,anchor='w').pack(fill='x',padx=18,pady=(16,9))
+    tk.Label(card,text=title,font=ui_font(parent,13,'bold'),fg=TEXT,bg=SURFACE,anchor='w').pack(fill='x',padx=18,pady=(16,9))
     if len(str(message))>1000:
-        area=tk.Frame(card,bg=SURFACE);area.pack(fill='both',expand=True,padx=18,pady=(0,12));text=tk.Text(area,height=12,width=64,wrap='word',bg=FIELD,fg=TEXT,relief='flat',font=('Segoe UI',10));scroll=ttk.Scrollbar(area,command=text.yview);scroll.pack(side='right',fill='y');text.pack(fill='both',expand=True);text.configure(yscrollcommand=scroll.set);text.insert('1.0',str(message));text.configure(state='disabled')
+        area=tk.Frame(card,bg=SURFACE);area.pack(fill='both',expand=True,padx=18,pady=(0,12));text=tk.Text(area,height=12,width=64,wrap='word',bg=FIELD,fg=TEXT,relief='flat',font=ui_font(parent,10));scroll=ttk.Scrollbar(area,command=text.yview);scroll.pack(side='right',fill='y');text.pack(fill='both',expand=True);text.configure(yscrollcommand=scroll.set);text.insert('1.0',str(message));text.configure(state='disabled')
     else:
-        label=tk.Label(card,text=str(message),wraplength=460,justify='left',fg=MUTED,bg=SURFACE,font=('Segoe UI',10));label.pack(fill='x',padx=18,pady=(0,12));label.bind('<Configure>',lambda event:label.configure(wraplength=max(100,event.width-4)))
+        label=tk.Label(card,text=str(message),wraplength=460,justify='left',fg=MUTED,bg=SURFACE,font=ui_font(parent,10));label.pack(fill='x',padx=18,pady=(0,12));label.bind('<Configure>',lambda event:label.configure(wraplength=max(100,event.width-4)))
     entry=None
     if input_mode:
         entry=ttk.Entry(card,width=52);entry.pack(fill='x',padx=18,pady=(0,14));entry.insert(0,'' if initialvalue is None else str(initialvalue));entry.select_range(0,tk.END)

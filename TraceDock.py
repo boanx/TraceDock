@@ -8,7 +8,7 @@ from tracedock_workers import resource_plan, inspect_text, parse_file_block, par
 from numpy.lib.mixins import NDArrayOperatorsMixin
 from datetime import datetime
 from pathlib import Path
-from tracedock_dpi import enable_dpi_awareness, watch_window_dpi
+from tracedock_dpi import enable_dpi_awareness, watch_window_dpi, display_fonts, ui_font
 if __name__ == '__main__':enable_dpi_awareness()
 import tkinter as tk
 from tkinter import ttk, filedialog
@@ -425,13 +425,20 @@ class TraceDock(tk.Tk):
     self.bind('<<DisplayScaleChanged>>',self._display_scale_changed,add='+')
  def _display_scale_changed(self,event):
     if event.widget is not self:return
-    ttk.Style(self).configure('Treeview',rowheight=round(28*float(self.tk.call('tk','scaling'))*72/96))
+    scale=display_fonts(self).dpi/96;style=ttk.Style(self);font=ui_font(self,9);bold=ui_font(self,9,'bold');p=lambda value:round(value*scale)
+    style.configure('.',font=font)
+    style.configure('Treeview',font=font,rowheight=max(p(28),font.metrics('linespace')+p(12)),indent=p(20))
+    style.configure('Treeview.Heading',font=bold,padding=(p(8),p(7)))
+    style.configure('TCombobox',font=font,padding=(p(5),p(4)))
+    style.configure('TEntry',font=font,padding=p(5))
+    style.configure('TNotebook.Tab',font=font,padding=(p(15),p(7)))
+    for name in ('Vertical.TScrollbar','Horizontal.TScrollbar'):style.configure(name,arrowsize=p(12))
     # An embedded TkAgg canvas has no FigureManager to handle monitor changes.
     # Let the backend update its own ratio instead of multiplying figure DPI.
-    self.canvas._update_device_pixel_ratio();self.canvas.draw_idle();self._schedule_sidebar_layout()
+    self.canvas._update_device_pixel_ratio();self.canvas.draw_idle();self._schedule_sidebar_layout();self._render_timeline()
  def _style(self):
-    style=ttk.Style(self);style.theme_use('clam');style.configure('.',background='#f4f8fb',foreground='#203449',fieldbackground='#ffffff',bordercolor='#cbdbe7',lightcolor='#ffffff',darkcolor='#d9e4ed',font=('Segoe UI',9))
-    style.configure('Treeview',background='#ffffff',foreground='#203449',fieldbackground='#ffffff',rowheight=28,bordercolor='#d9e4ed',relief='flat');style.configure('Treeview.Heading',background='#eaf2f8',foreground='#405d75',font=('Segoe UI',9,'bold'),padding=(8,7),relief='flat');style.map('Treeview',background=[('selected','#d7efee')],foreground=[('selected','#164e58')]);style.map('Treeview.Heading',background=[('active','#dceef2')])
+    style=ttk.Style(self);style.theme_use('clam');style.configure('.',background='#f4f8fb',foreground='#203449',fieldbackground='#ffffff',bordercolor='#cbdbe7',lightcolor='#ffffff',darkcolor='#d9e4ed',font=ui_font(self,9))
+    style.configure('Treeview',background='#ffffff',foreground='#203449',fieldbackground='#ffffff',rowheight=28,bordercolor='#d9e4ed',relief='flat');style.configure('Treeview.Heading',background='#eaf2f8',foreground='#405d75',font=ui_font(self,9,'bold'),padding=(8,7),relief='flat');style.map('Treeview',background=[('selected','#d7efee')],foreground=[('selected','#164e58')]);style.map('Treeview.Heading',background=[('active','#dceef2')])
     style.configure('TCombobox',fieldbackground='#ffffff',background='#eaf2f8',foreground='#203449',selectbackground='#d7efee',selectforeground='#203449',arrowcolor='#60758a',borderwidth=1,padding=5);style.map('TCombobox',fieldbackground=[('readonly','#ffffff')],foreground=[('readonly','#203449')],selectbackground=[('readonly','#ffffff')],selectforeground=[('readonly','#203449')])
     style.configure('TEntry',fieldbackground='#ffffff',foreground='#203449',insertcolor='#203449',padding=5,borderwidth=1);style.map('TEntry',bordercolor=[('focus','#55aeb1')])
     style.configure('TNotebook',background='#f4f8fb',bordercolor='#d9e4ed',tabmargins=(4,3,4,0));style.configure('TNotebook.Tab',background='#eaf2f8',foreground='#60758a',padding=(15,7));style.map('TNotebook.Tab',background=[('selected','#ffffff'),('active','#e1f1f3')],foreground=[('selected','#007f85')])
@@ -442,7 +449,7 @@ class TraceDock(tk.Tk):
  def _glass_window_mapped(self,event):
     if event.widget is self or isinstance(event.widget,tk.Toplevel):self.after_idle(lambda window=event.widget:apply_native_glass(window) if window.winfo_exists() else None)
  def _build(self):
-    top=tk.Frame(self,bg='#e8eff5',height=58); top.pack(fill='x',padx=18);self._add_brand_logo(top); tk.Label(top,text='TraceDock',font=('Segoe UI',18,'bold'),fg='#007f85',bg='#e8eff5').pack(side='left',pady=12); self.status=tk.StringVar(value='Çevrimdışı • veriler bilgisayarınızda kalır'); tk.Label(top,textvariable=self.status,fg='#60758a',bg='#e8eff5').pack(side='right')
+    top=tk.Frame(self,bg='#e8eff5',height=58); top.pack(fill='x',padx=18);self._add_brand_logo(top); tk.Label(top,text='TraceDock',font=ui_font(self,18,'bold'),fg='#007f85',bg='#e8eff5').pack(side='left',pady=12); self.status=tk.StringVar(value='Çevrimdışı • veriler bilgisayarınızda kalır'); tk.Label(top,textvariable=self.status,fg='#60758a',bg='#e8eff5').pack(side='right')
     self.workarea=ResponsivePanedWindow(self,fraction=.74,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.workarea.pack(fill='both',expand=True,padx=14,pady=(0,14));body=ResponsivePanedWindow(self.workarea,fraction=.24,orient='horizontal',bg='#d9e4ed',sashwidth=5,bd=0);self.workarea.add(body,minsize=320,stretch='always'); sidebar_host=tk.Frame(body,bg='#f4f8fb',width=320);right=tk.Frame(body,bg='#f4f8fb');body.add(sidebar_host,minsize=220);body.add(right,minsize=380);sidebar_host.configure(highlightthickness=1,highlightbackground='#ffffff');right.configure(highlightthickness=1,highlightbackground='#ffffff');left=self._build_scrollable_sidebar(sidebar_host)
     self._panel_title(left,'VERİ DOSYALARI')
     file_actions=ResponsiveButtonBar(left,bg='#f4f8fb');file_actions.pack(fill='x',padx=10)
@@ -455,7 +462,7 @@ class TraceDock(tk.Tk):
     for label,command in [("Görünen grafiği CSV'ye aktar",self.export_graph_csv),("Seçili aralığı CSV'ye aktar",self.export_span_csv),("Kanal istatistiklerini CSV'ye aktar",self.export_stats_csv),("Görünen grafiği PNG olarak dışarı aktar",self.export_graph_png)]:
       self._button(exports,label,command).pack(side='left',padx=(0,6))
     self.coords=tk.StringVar(value='X = —    Y = —');bar3=self._control_row(toolbar,fill='x',pady=(3,0));self._button(bar3,'Y eksenleri',self._show_y_axes).pack(side='right',padx=(6,0));ttk.Checkbutton(bar3,text='Lejantı göster',variable=self.legend_visible,command=self._toggle_legend).pack(side='right',padx=(8,0));tk.Label(bar3,text='Sol tık: prob ekle/sil • Sağ tık: prob etiketi • Sol sürükle: aralık • Sağ sürükle: kaydır • Tekerlek / orta tuş: zoom',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=2)
-    self.graph_panels=ResponsivePanedWindow(right,fraction=.73,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.graph_panels.pack(fill='both',expand=True,padx=10,pady=(0,8));plotbox=tk.Frame(self.graph_panels,bg='#f4f8fb');self.graph_panels.add(plotbox,minsize=120,stretch='always');readout=tk.Label(plotbox,textvariable=self.coords,fg='#405d75',bg='#f4f8fb',font=('Segoe UI',8),anchor='w',justify='left',padx=6,pady=2);readout.pack(side='bottom',fill='x');readout.bind('<Configure>',lambda e:readout.configure(wraplength=max(150,e.width-12))); self.fig=Figure(figsize=(9,5),dpi=100,facecolor='#f4f8fb');self.ax=self.fig.add_subplot(111);self.ax.set_facecolor('#ffffff');self.fig.subplots_adjust(left=.09,right=.985,top=.97,bottom=.12);self.canvas=FigureCanvasTkAgg(self.fig,master=plotbox);self.canvas.get_tk_widget().pack(fill='both',expand=True);self.canvas.mpl_connect('motion_notify_event',self.on_motion);self.canvas.mpl_connect('button_press_event',self.on_press);self.canvas.mpl_connect('button_release_event',self.on_release);self.canvas.mpl_connect('scroll_event',self.on_scroll);self.canvas.mpl_connect('resize_event',self._on_graph_resize)
+    self.graph_panels=ResponsivePanedWindow(right,fraction=.73,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.graph_panels.pack(fill='both',expand=True,padx=10,pady=(0,8));plotbox=tk.Frame(self.graph_panels,bg='#f4f8fb');self.graph_panels.add(plotbox,minsize=120,stretch='always');readout=tk.Label(plotbox,textvariable=self.coords,fg='#405d75',bg='#f4f8fb',font=ui_font(self,8),anchor='w',justify='left',padx=6,pady=2);readout.pack(side='bottom',fill='x');readout.bind('<Configure>',lambda e:readout.configure(wraplength=max(150,e.width-12))); self.fig=Figure(figsize=(9,5),dpi=100,facecolor='#f4f8fb');self.ax=self.fig.add_subplot(111);self.ax.set_facecolor('#ffffff');self.fig.subplots_adjust(left=.09,right=.985,top=.97,bottom=.12);self.canvas=FigureCanvasTkAgg(self.fig,master=plotbox);self.canvas.get_tk_widget().pack(fill='both',expand=True);self.canvas.mpl_connect('motion_notify_event',self.on_motion);self.canvas.mpl_connect('button_press_event',self.on_press);self.canvas.mpl_connect('button_release_event',self.on_release);self.canvas.mpl_connect('scroll_event',self.on_scroll);self.canvas.mpl_connect('resize_event',self._on_graph_resize)
     measurements=tk.Frame(self.graph_panels,bg='#f4f8fb',height=170);measurements.pack_propagate(False);self.graph_panels.add(measurements,minsize=100,height=170,stretch='always');self.tables=ttk.Notebook(measurements);self.tables.pack(fill='both',expand=True,padx=4,pady=4);stats_tab=tk.Frame(self.tables,bg='#f4f8fb');probe_tab=tk.Frame(self.tables,bg='#f4f8fb');self.tables.add(stats_tab,text='Kanal istatistikleri');self.tables.add(probe_tab,text='Problar');cols=('channel','start','end','min','max');self.table=AdaptiveTreeview(stats_tab,columns=cols,show='headings',height=4);labels=['Kanal','Başlangıç','Bitiş','Minimum','Maksimum'];widths=[280,150,150,150,150]
     for c,l,w in zip(cols,labels,widths):self.table.heading(c,text=l,command=lambda col=c:self.sort_tree(self.table,col));self.table.column(c,width=w,anchor='w' if c=='channel' else 'e')
     self._pack_measurement_table(self.table,stats_tab);pcols=('channel','probe','x','y');self.probe_table=AdaptiveTreeview(probe_tab,columns=pcols,show='headings',height=4)
@@ -541,7 +548,7 @@ class TraceDock(tk.Tk):
  def _build_timeline(self):
     dock=tk.Frame(self.workarea,bg='#f4f8fb',height=230);dock.configure(highlightthickness=1,highlightbackground='#ffffff');dock.pack_propagate(False);self.workarea.add(dock,minsize=160,height=230,stretch='never');self.timeline_dock=dock;self._timeline_collapsed=False
     row=self._control_row(dock,fill='x',padx=10,pady=(6,2))
-    tk.Label(row,text='ZAMAN ÇİZELGESİ',fg='#007f85',bg='#f4f8fb',font=('Segoe UI',9,'bold')).pack(side='left',padx=(0,12))
+    tk.Label(row,text='ZAMAN ÇİZELGESİ',fg='#007f85',bg='#f4f8fb',font=ui_font(self,9,'bold')).pack(side='left',padx=(0,12))
     self.timeline_fold_button=self._button(row,'Küçült ▴',self._toggle_timeline_panel);self.timeline_fold_button.configure(pady=2);self.timeline_fold_button.pack(side='right',padx=(8,0))
     self.timeline_total=tk.StringVar(value='Toplam: 00:00:00.0000')
     tk.Label(row,textvariable=self.timeline_total,fg='#203449',bg='#f4f8fb').pack(side='right')
@@ -581,8 +588,8 @@ class TraceDock(tk.Tk):
       self._timeline_row_number+=1;self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':f'Satır {self._timeline_row_number}'}]
     self.timeline_row=self.timeline_rows[0]['uid'];self.timeline_selected=None;self._timeline_changed()
  def _timeline_reveal_row(self):
-    c=self.timeline_canvas;index=next(i for i,r in enumerate(self.timeline_rows) if r['uid']==self.timeline_row);top=28+index*76;bottom=top+76;height=max(75,c.winfo_height());total=max(height,28+76*len(self.timeline_rows));view=c.canvasy(0)
-    if top<view+28:c.yview_moveto(max(0,top-28)/total)
+    c=self.timeline_canvas;margin,header,row_height=self._timeline_geometry();index=next(i for i,r in enumerate(self.timeline_rows) if r['uid']==self.timeline_row);top=header+index*row_height;bottom=top+row_height;height=max(1,c.winfo_height());total=max(height,header+row_height*len(self.timeline_rows));view=c.canvasy(0)
+    if top<view+header:c.yview_moveto(max(0,top-header)/total)
     elif bottom>view+height:c.yview_moveto(max(0,bottom-height)/total)
     self._render_timeline()
  def _timeline_layout(self):
@@ -640,46 +647,61 @@ class TraceDock(tk.Tk):
  def _timeline_vscroll(self,*args):self.timeline_canvas.yview(*args);self._render_timeline()
  def timeline_zoom(self,factor):
     self._timeline_fit=False;self._timeline_scale=max(1e-9,min(1e8,self._timeline_scale*factor));self._render_timeline()
+ def _timeline_geometry(self):
+    factor=display_fonts(self).dpi/96
+    return max(120*factor,ui_font(self,8).measure('Seçmek için tıkla')+24*factor),28*factor,76*factor
+ def _timeline_title(self,text,width):
+    font=ui_font(self,9,'bold')
+    if font.measure(text)<=width:return text
+    lo=0;hi=len(text)
+    while lo<hi:
+      mid=(lo+hi+1)//2
+      if font.measure(text[:mid]+'…')<=width:lo=mid
+      else:hi=mid-1
+    return text[:lo]+'…' if font.measure('…')<=width else ''
  def _render_timeline(self):
-    self._timeline_sync_rows();c=self.timeline_canvas;c.delete('all');layout=self._timeline_layout();total=max((e for cl,d,s,e in layout),default=0.);width=max(160,c.winfo_width());height=max(75,c.winfo_height());margin=120;row_height=76
+    self._timeline_sync_rows();c=self.timeline_canvas;c.delete('all');layout=self._timeline_layout();total=max((e for cl,d,s,e in layout),default=0.);factor=display_fonts(self).dpi/96;width=max(160,c.winfo_width()/factor);height=max(75,c.winfo_height()/factor);margin=self._timeline_geometry()[0]/factor;row_height=76
     self.timeline_total.set(f'{len(self.timeline_rows)} satır • {len(layout)} paket • Toplam: {elapsed_text(total)}')
     if self._timeline_fit:self._timeline_scale=(width-margin-15)/max(total,1e-9)
-    scale=self._timeline_scale;extent=max(width,total*scale+margin+15);content_height=max(height,28+row_height*len(self.timeline_rows));c.configure(scrollregion=(0,0,extent,content_height));self._timeline_rects=[]
-    left=c.canvasx(0);right=c.canvasx(width);top=c.canvasy(0);bottom=c.canvasy(height);row_indices={r['uid']:i for i,r in enumerate(self.timeline_rows)}
+    scale=self._timeline_scale;extent=max(width,total*scale+margin+15);content_height=max(height,28+row_height*len(self.timeline_rows));c.configure(scrollregion=(0,0,extent*factor,content_height*factor));self._timeline_rects=[]
+    left=c.canvasx(0)/factor;right=left+width;top=c.canvasy(0)/factor;bottom=top+height;row_indices={r['uid']:i for i,r in enumerate(self.timeline_rows)}
     for row in self.timeline_rows:
       y=28+row_indices[row['uid']]*row_height
       if y+row_height<top or y>bottom:continue
       c.create_rectangle(left,y,right,y+row_height,fill='#e8f4f5' if row['uid']==self.timeline_row else '#ffffff',outline='#d9e4ed')
-      if not any(cl.get('row_uid',self.timeline_rows[0]['uid'])==row['uid'] for cl in self.timeline):c.create_text(max(margin+12,left+margin+12),y+35,text='Boş satır • Sağ tıkla veri ekleyin veya bir paketi buraya sürükleyin',fill='#708798',anchor='w',font=('Segoe UI',9))
+      if not any(cl.get('row_uid',self.timeline_rows[0]['uid'])==row['uid'] for cl in self.timeline):c.create_text(max(margin+12,left+margin+12),y+35,text='Boş satır • Sağ tıkla veri ekleyin veya bir paketi buraya sürükleyin',fill='#708798',anchor='w',font=ui_font(self,9))
     for i,(clip,d,start,end) in enumerate(layout):
-      row_uid=clip.get('row_uid',self.timeline_rows[0]['uid']);y=28+row_indices[row_uid]*row_height;x1=margin+start*scale;x2=margin+end*scale;y1=y+5;y2=y+row_height-5;self._timeline_rects.append((clip['uid'],row_uid,x1,x2,y1,y2))
+      row_uid=clip.get('row_uid',self.timeline_rows[0]['uid']);y=28+row_indices[row_uid]*row_height;x1=margin+start*scale;x2=margin+end*scale;y1=y+5;y2=y+row_height-5;self._timeline_rects.append((clip['uid'],row_uid,x1*factor,x2*factor,y1*factor,y2*factor))
       if x2<left+margin or x1>right or y2<top+28 or y1>bottom:continue
       color=PALETTE[row_indices[row_uid]%len(PALETTE)];selected=clip['uid']==self.timeline_selected
       rounded_rect(c,x1,y1,x2,y2,r=11,fill='#d7efee' if selected else '#eaf2f8',outline='#007f85' if selected else '#cbdbe7',width=2 if selected else 1)
       if x2-x1>30:
-        chars=max(1,int((x2-x1-12)/7));names=self._clip_channels(clip,d);title=d['name']+((' / '+names[0]) if len(names)==1 else f' / {len(names)} kanal');title=title if len(title)<=chars else title[:max(1,chars-1)]+'…';c.create_text(x1+6,y+22,text=title,fill=color,anchor='w',font=('Segoe UI',9,'bold'))
-        if x2-x1>135:c.create_text(x1+6,y+45,text=f'{elapsed_text(start)} → {elapsed_text(end)}',fill='#405d75',anchor='w',font=('Segoe UI',8))
+        names=self._clip_channels(clip,d);title=d['name']+((' / '+names[0]) if len(names)==1 else f' / {len(names)} kanal');title=self._timeline_title(title,(x2-x1-12)*factor);c.create_text(x1+6,y+22,text=title,fill=color,anchor='w',font=ui_font(self,9,'bold'))
+        if x2-x1>135:c.create_text(x1+6,y+45,text=f'{elapsed_text(start)} → {elapsed_text(end)}',fill='#405d75',anchor='w',font=ui_font(self,8))
     # Fixed row labels and ruler stay visible while either scrollbar moves.
     c.create_rectangle(left,top,left+margin-6,bottom,fill='#f4f8fb',outline='')
     for row in self.timeline_rows:
       index=row_indices[row['uid']];y=28+index*row_height
       if y+row_height<top+28 or y>bottom:continue
       rounded_rect(c,left+3,y+3,left+margin-10,y+row_height-3,r=11,fill='#d7efee' if row['uid']==self.timeline_row else '#eaf2f8',outline=PALETTE[index%len(PALETTE)])
-      c.create_text(left+12,y+25,text=row['name'],fill='#203449',anchor='w',font=('Segoe UI',9,'bold'));c.create_text(left+12,y+47,text='Aktif satır' if row['uid']==self.timeline_row else 'Seçmek için tıkla',fill='#60758a',anchor='w',font=('Segoe UI',8))
-    c.create_rectangle(left,top,right,top+27,fill='#f4f8fb',outline='');c.create_text(left+12,top+13,text='SATIRLAR',fill='#60758a',anchor='w',font=('Segoe UI',8,'bold'))
+      c.create_text(left+12,y+25,text=row['name'],fill='#203449',anchor='w',font=ui_font(self,9,'bold'));c.create_text(left+12,y+47,text='Aktif satır' if row['uid']==self.timeline_row else 'Seçmek için tıkla',fill='#60758a',anchor='w',font=ui_font(self,8))
+    c.create_rectangle(left,top,right,top+27,fill='#f4f8fb',outline='');c.create_text(left+12,top+13,text='SATIRLAR',fill='#60758a',anchor='w',font=ui_font(self,8,'bold'))
     if total>0:
       step=max(total/1000000,100/max(scale,1e-12));power=10**math.floor(math.log10(step));step=next(v*power for v in (1,2,5,10) if v*power>=step);first=max(0,math.ceil(left/scale/step))
       for i in range(first,first+int(width/100)+4):
         sec=i*step;x=margin+sec*scale
         if sec>total or x>right+120:break
         if x<left+margin:continue
-        c.create_line(x,top+20,x,top+27,fill='#60758a');c.create_text(x+3,top+11,text=elapsed_text(sec),fill='#526c82',anchor='w',font=('Segoe UI',8))
+        c.create_line(x,top+20,x,top+27,fill='#60758a');c.create_text(x+3,top+11,text=elapsed_text(sec),fill='#526c82',anchor='w',font=ui_font(self,8))
+    c.scale('all',0,0,factor,factor)
  def _timeline_row_at(self,event):
-    if event.y<28:return None
-    index=int((self.timeline_canvas.canvasy(event.y)-28)//76)
+    margin,header,row_height=self._timeline_geometry()
+    if event.y<header:return None
+    index=int((self.timeline_canvas.canvasy(event.y)-header)//row_height)
     return self.timeline_rows[index]['uid'] if 0<=index<len(self.timeline_rows) else None
  def _timeline_hit(self,event):
-    if event.x<120 or event.y<28:return None
+    margin,header,row_height=self._timeline_geometry()
+    if event.x<margin or event.y<header:return None
     x=self.timeline_canvas.canvasx(event.x);y=self.timeline_canvas.canvasy(event.y)
     return next((uid for uid,row,a,b,c,d in self._timeline_rects if a<=x<b and c<=y<d),None)
  def _timeline_press(self,event):
@@ -689,19 +711,19 @@ class TraceDock(tk.Tk):
  def _timeline_drop_target(self,event,uid):
     row=self._timeline_row_at(event)
     if row is None:return None
-    x=self.timeline_canvas.canvasx(max(120,event.x));peers=[(key,a,b) for key,r,a,b,y1,y2 in self._timeline_rects if r==row and key!=uid];target=sum(x>(a+b)/2 for key,a,b in peers)
+    margin,header,row_height=self._timeline_geometry();x=self.timeline_canvas.canvasx(max(margin,event.x));peers=[(key,a,b) for key,r,a,b,y1,y2 in self._timeline_rects if r==row and key!=uid];target=sum(x>(a+b)/2 for key,a,b in peers)
     return row,target,peers
  def _timeline_motion(self,event):
     if not self._timeline_drag or self._timeline_drag[0] is None:return
-    c=self.timeline_canvas
-    if event.x<135:c.xview_scroll(-1,'units')
+    c=self.timeline_canvas;margin,header,row_height=self._timeline_geometry()
+    if event.x<margin+15:c.xview_scroll(-1,'units')
     elif event.x>c.winfo_width()-20:c.xview_scroll(1,'units')
-    if event.y<40:c.yview_scroll(-1,'units')
+    if event.y<header+12:c.yview_scroll(-1,'units')
     elif event.y>c.winfo_height()-15:c.yview_scroll(1,'units')
     self._render_timeline();target=self._timeline_drop_target(event,self._timeline_drag[0])
     if target:
-      row,index,peers=target;ri=next(i for i,r in enumerate(self.timeline_rows) if r['uid']==row);y=28+ri*76;x=peers[index][1] if index<len(peers) else peers[-1][2] if peers else 120
-      ya=max(y+1,c.canvasy(0)+28);yb=min(y+75,c.canvasy(c.winfo_height()));c.create_rectangle(c.canvasx(0)+120,ya,c.canvasx(c.winfo_width()),yb,outline='#007f85',width=2,tags='drop');c.create_line(max(x,c.canvasx(0)+120),ya,max(x,c.canvasx(0)+120),yb,fill='#203449',width=3,tags='drop')
+      row,index,peers=target;ri=next(i for i,r in enumerate(self.timeline_rows) if r['uid']==row);y=header+ri*row_height;x=peers[index][1] if index<len(peers) else peers[-1][2] if peers else margin
+      ya=max(y+1,c.canvasy(0)+header);yb=min(y+row_height-1,c.canvasy(c.winfo_height()));c.create_rectangle(c.canvasx(0)+margin,ya,c.canvasx(c.winfo_width()),yb,outline='#007f85',width=2,tags='drop');c.create_line(max(x,c.canvasx(0)+margin),ya,max(x,c.canvasx(0)+margin),yb,fill='#203449',width=3,tags='drop')
  def _timeline_release(self,event):
     drag=self._timeline_drag;self._timeline_drag=None;self.timeline_canvas.delete('drop')
     if not drag or drag[0] is None or max(abs(event.x-drag[1]),abs(event.y-drag[2]))<5:return
@@ -727,7 +749,7 @@ class TraceDock(tk.Tk):
     tracks={}
     for entry in series:tracks.setdefault(entry['track'],[]).append(entry)
     return [{'label':items[0]['track_label'],'x':JoinedTimeAxis([e['x'] for e in items]),'y':JoinedValues([e['y'] for e in items])} for items in tracks.values()]
- def _panel_title(self,parent,text): tk.Label(parent,text=text,font=('Segoe UI',9,'bold'),fg='#60758a',bg='#f4f8fb',anchor='w').pack(fill='x',padx=10,pady=(12,7))
+ def _panel_title(self,parent,text): tk.Label(parent,text=text,font=ui_font(self,9,'bold'),fg='#60758a',bg='#f4f8fb',anchor='w').pack(fill='x',padx=10,pady=(12,7))
  def _button(self,parent,text,cmd):return GlassButton(parent,text,cmd)
  def _start_job(self,title,work,on_success,on_error=None):
     if self._job is not None:
@@ -804,7 +826,7 @@ class TraceDock(tk.Tk):
 
  def _tdms_settings(self,channels):
     win=tk.Toplevel(self);win.title('TDMS kanal hızları ve çarpanları');size_dialog(win,self,860,600);win.transient(self);win.grab_set();win.configure(bg='#f4f8fb')
-    self._wrapped_label(win,text='Hız metaverisi otomatik doldurulur. Kanallar en yüksek hıza eşitlenir; her kanalın çarpanını düzenleyin.',fg='#203449',bg='#f4f8fb',font=('Segoe UI',11,'bold')).pack(fill='x',padx=14,pady=(14,8))
+    self._wrapped_label(win,text='Hız metaverisi otomatik doldurulur. Kanallar en yüksek hıza eşitlenir; her kanalın çarpanını düzenleyin.',fg='#203449',bg='#f4f8fb',font=ui_font(self,11,'bold')).pack(fill='x',padx=14,pady=(14,8))
     frame=tk.Frame(win,bg='#f4f8fb');frame.pack(fill='both',expand=True,padx=14,pady=8)
     tree=AdaptiveTreeview(frame,columns=('channel','rate','factor'),show='headings');tree.heading('channel',text='Grup / kanal');tree.heading('rate',text='Örnekleme hızı (Hz)');tree.heading('factor',text='Çarpan');tree.column('channel',width=500);tree.column('rate',width=170,anchor='center');tree.column('factor',width=130,anchor='center');self._pack_measurement_table(tree,frame)
     for i,ch in enumerate(channels):tree.insert('','end',iid=str(i),values=(ch['name'],ch['default_rate'],'1'))
@@ -912,7 +934,7 @@ class TraceDock(tk.Tk):
  def render_channels(self):
     if not hasattr(self,'channel_tree'):
       self.channel_tree=AdaptiveTreeview(self.chlist,columns=('rate','duration','factor','axis'),show='tree headings',selectmode='extended')
-      tree=self.channel_tree;tree.tag_configure('dataset',foreground='#007f85',font=('Segoe UI',9,'bold'));tree.heading('#0',text='Dosya / kanal');tree.column('#0',width=205,minwidth=130)
+      tree=self.channel_tree;tree.tag_configure('dataset',foreground='#007f85',font=ui_font(self,9,'bold'));tree.heading('#0',text='Dosya / kanal');tree.column('#0',width=205,minwidth=130)
       for col,label,width in [('rate','Hz',82),('duration','Süre (s)',96),('factor','Çarpan',70),('axis','Y ekseni',78)]:tree.heading(col,text=label);tree.column(col,width=width,minwidth=55,anchor='e')
       self._pack_measurement_table(tree,self.chlist)
       self._check_images={}
@@ -974,7 +996,7 @@ class TraceDock(tk.Tk):
     if iid not in self._tree_rows or (not keyboard and tree.identify_column(event.x)!='#0'):return 'break'
     di,name=self._tree_rows[iid];d=self.datasets[di];self.active=di;self.selected=set(d['_selected']);self.filelist.selection_clear(0,'end');self.filelist.selection_set(di);tree.focus(iid)
     if iid not in tree.selection():tree.selection_set(iid);self._tree_anchor=iid
-    names=tuple(n for n in d['channels'] if n in d['_selected']) if name is None else (name,);uid=d['uid'];options=dict(tearoff=False,bg='#f4f8fb',fg='#203449',activebackground='#d7efee',activeforeground='#164e58',disabledforeground='#60758a',relief='flat',borderwidth=1,font=('Segoe UI',10))
+    names=tuple(n for n in d['channels'] if n in d['_selected']) if name is None else (name,);uid=d['uid'];options=dict(tearoff=False,bg='#f4f8fb',fg='#203449',activebackground='#d7efee',activeforeground='#164e58',disabledforeground='#60758a',relief='flat',borderwidth=1,font=ui_font(self,10))
     previous=getattr(self,'_channel_menu',None)
     if previous is not None:previous.destroy()
     menu=tk.Menu(self,**options);self._channel_menu=menu;menu.add_command(label=(d['name']+f' / {len(names)} işaretli kanal') if name is None else name,state='disabled');menu.add_separator();rows=tk.Menu(menu,**options)
@@ -1139,14 +1161,14 @@ class TraceDock(tk.Tk):
     if not tracks:return
     old=getattr(self,'_y_axis_menu',None)
     if old is not None:old.destroy()
-    menu=tk.Menu(self,tearoff=False,bg='#f4f8fb',fg='#203449',activebackground='#d7efee',activeforeground='#164e58',font=('Segoe UI',10));self._y_axis_menu=menu
+    menu=tk.Menu(self,tearoff=False,bg='#f4f8fb',fg='#203449',activebackground='#d7efee',activeforeground='#164e58',font=ui_font(self,10));self._y_axis_menu=menu
     for slot,label in Y_AXIS_LABELS.items():menu.add_command(label='Y ekseni: '+label,command=lambda chosen=slot:self._assign_track_axes(tracks,chosen))
     menu.add_separator();menu.add_command(label='Y eksenleri penceresi…',command=self._show_y_axes)
     try:menu.tk_popup(round(x),round(y))
     finally:menu.grab_release()
  def _source_axis_menu(self,uid,names,x,y):
     if not names:self.status.set('Önce bir kanal işaretleyin');return
-    menu=tk.Menu(self,tearoff=False,bg='#f4f8fb',fg='#203449',activebackground='#d7efee',activeforeground='#164e58',font=('Segoe UI',10));self._y_axis_menu=menu
+    menu=tk.Menu(self,tearoff=False,bg='#f4f8fb',fg='#203449',activebackground='#d7efee',activeforeground='#164e58',font=ui_font(self,10));self._y_axis_menu=menu
     for slot,label in Y_AXIS_LABELS.items():menu.add_command(label='Y ekseni: '+label,command=lambda chosen=slot:self._assign_source_axis(uid,names,chosen))
     try:menu.tk_popup(round(x),round(y))
     finally:menu.grab_release()
@@ -1166,7 +1188,7 @@ class TraceDock(tk.Tk):
     self._track_axes.update({track:slot for track in tracks});self._reset_axis_slots.add(slot);self.redraw_all(preserve_view=True);self.status.set(f'{len(tracks)} eğri → {Y_AXIS_LABELS[slot]}')
  def _show_y_axes(self):
     win=tk.Toplevel(self);win.title('Y eksenleri');size_dialog(win,self,790,470);win.configure(bg='#f4f8fb');win.transient(self)
-    self._wrapped_label(win,text='Solda 2, sağda 2 bağımsız Y ekseni. Kanal seçip eksene atayın.',bg='#f4f8fb',fg='#203449',font=('Segoe UI',11,'bold')).pack(fill='x',padx=14,pady=(14,8))
+    self._wrapped_label(win,text='Solda 2, sağda 2 bağımsız Y ekseni. Kanal seçip eksene atayın.',bg='#f4f8fb',fg='#203449',font=ui_font(self,11,'bold')).pack(fill='x',padx=14,pady=(14,8))
     area=tk.Frame(win,bg='#f4f8fb');area.pack(fill='both',expand=True,padx=14);tree=AdaptiveTreeview(area,columns=('channel','unit','axis'),show='headings',selectmode='extended');tree.heading('channel',text='Zaman çizelgesi / kanal');tree.heading('unit',text='Birim');tree.heading('axis',text='Y ekseni');tree.column('channel',width=500);tree.column('unit',width=90);tree.column('axis',width=100);self._pack_measurement_table(tree,area)
     by_track={}
     for entry in self._plot_series(limited=False):by_track.setdefault(entry['track'],entry)
