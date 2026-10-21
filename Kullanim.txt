@@ -27,10 +27,10 @@ KANAL VE GRAFİK ARAÇLARI
 • Bir eğriye sol tıklayıp kanal başına en fazla 5 probe ekleyin. Probe üzerinde sağ tıkla etiketini açıp kapatın; sol tıkla probe'u kaldırın. İstatistik ve probe tabloları alt sekmelerde gösterilir ve sıralanabilir.
 
 DIŞA AKTARMA
-• “Grafik CSV” span seçiliyse span'i, değilse görünür X aralığını dışa aktarır.
+• “Görünen grafiği CSV'ye aktar” her zaman görünür X aralığını dışa aktarır. Seçili aralık için “Seçili aralığı CSV'ye aktar” düğmesini kullanın.
 • “Seçili aralığı CSV'ye aktar” yalnızca span'i dışa aktarır.
 • Zaman eksenleri farklıysa her kanal, kendi zaman ve değer sütunu çiftiyle dışa aktarılır. Ortak zaman ekseni olan kanallar tek zaman sütununu paylaşır. Seçili aralık her kanalın kendi zaman damgalarına uygulanır.
-• “İstatistik CSV” istatistik tablosunu, “Grafik PNG” grafiğin mevcut görünümünü kaydeder.
+• “Kanal istatistiklerini CSV'ye aktar” istatistik tablosunu, “Görünen grafiği PNG olarak dışarı aktar” grafiğin mevcut görünümünü kaydeder.
 • Ondalık ayıracı nokta veya virgül olarak seçilebilir; virgül seçilince CSV sütun ayıracı noktalı virgül olur.
 
 TraceDock, Exlab CSV ve NI TDMS verilerini destekler. Exlab'in .tdmbin ham dosyasını önce Exlab'den CSV olarak dışa aktarın.
@@ -65,7 +65,7 @@ SOL PANELİN TAMAMINI KAYDIRMA
 
 MARKA GÜNCELLEMESİ
 • Uygulama adı TraceDock, simgesi C tasarımıdır. Yeni sürümü TraceDock.exe ile açın.
-• Görünüm ayarları JSON biçiminde kaydedilip yüklenebilir.
+• Ayarları kaydet / yükle düğmeleri kaldırılmıştır.
 
 
 LIQUID GLASS GÖRÜNÜMÜ
@@ -88,11 +88,11 @@ GRAFİK FARE TUŞLARI
 Hazırlayan: Ahmet Yusuf Ozyurt
 
 GRAFİK LEJANTI
-• Grafik araç çubuğundaki “Lejantı göster” kutusuyla eğri adlarını açıp kapatabilirsiniz. Yakınlaştırma, prob ve yeniden çizim sırasında tercih korunur; PNG çıktısı da aynı görünümü kullanır. Ayarları kaydet/yükle bu tercihi de saklar.
+• Grafik araç çubuğundaki “Lejantı göster” kutusuyla eğri adlarını açıp kapatabilirsiniz. Yakınlaştırma, prob ve yeniden çizim sırasında tercih korunur; PNG çıktısı da aynı görünümü kullanır.
 
 TOPLU KANAL SEÇİMİ
 • Bir kanala tıklayıp Shift basılıyken başka bir kanala tıklayarak aralığı seçin. Ctrl+tık ile ayrı kanalları seçime ekleyip çıkarın.
-• Birden fazla satır seçiliyken kutucuğa tıklamak bütün seçilenlerin kutularını aynı duruma getirir. Boşluk tuşu, “Seçilenleri işaretle” ve “İşaretleri kaldır” düğmeleri de toplu işlem yapar. İşaretli, işaretsiz ve kısmen işaretli dosyalar farklı kutu durumlarıyla gösterilir.
+• Birden fazla satır seçiliyken kutucuğa tıklamak bütün seçilenlerin kutularını aynı duruma getirir. Boşluk tuşu da toplu işlem yapar. İşaretli, işaretsiz ve kısmen işaretli dosyalar farklı kutu durumlarıyla gösterilir.
 • Dosya satırını sağ tıkla eklemek yalnızca o dosya altındaki işaretli kanalları ekler. İşaretli kanal yoksa ekleme seçenekleri kapalıdır. “Tümünü sırala” da dosyaların yalnızca işaretli kanallarını kullanır.
 • Kanal gruplama etiketi ekleme/atama/filtreleme kaldırıldı. Prob değer etiketleri bu değişiklikten bağımsızdır.
 

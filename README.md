@@ -45,7 +45,7 @@ Zaman çizelgesinde örneklerin zamanı kanalın **Hz** ayarından hesaplanır: 
 
 ### Toplu kanal seçimi
 
-Bir kanala tıklayın, **Shift** basılıyken başka bir kanala tıklayarak aralığı seçin. **Ctrl+tık** ile ayrı kanalları seçime ekleyip çıkarabilirsiniz. Seçili satırlar üzerinde kutucuğa tıklayın veya **Boşluk** tuşuna basın; kutucuklar topluca güncellenir. **Seçilenleri işaretle / İşaretleri kaldır** düğmeleri de kullanılabilir.
+Bir kanala tıklayın, **Shift** basılıyken başka bir kanala tıklayarak aralığı seçin. **Ctrl+tık** ile ayrı kanalları seçime ekleyip çıkarabilirsiniz. Seçili satırlar üzerinde kutucuğa tıklayın veya **Boşluk** tuşuna basın; kutucuklar topluca güncellenir.
 
 Kanal gruplama etiketleri kaldırılmıştır. Prob üzerindeki değer etiketleri kullanılmaya devam eder.
 
@@ -73,7 +73,7 @@ Atamalar mevcut oturum içindir. **Tümünü Sol 1’e al** ile tek eksen görü
 | Fare tekerleği | Yakınlaştır / uzaklaştır |
 | Orta tuşla sürükle | X / Y eksenlerini yakınlaştır |
 
-**Lejantı göster** kutusuyla grafik lejantını gizleyebilir veya açabilirsiniz. Bu seçim yakınlaştırma ve prob işlemleri sırasında korunur; PNG çıktısına da yansır. Ayarları kaydet/yükle, lejant tercihini de saklar.
+**Lejantı göster** kutusuyla grafik lejantını gizleyebilir veya açabilirsiniz. Bu seçim yakınlaştırma ve prob işlemleri sırasında korunur; PNG çıktısına da yansır.
 
 Ayrıntılar: [Kullanım kılavuzu](Kullanim.txt).
 
