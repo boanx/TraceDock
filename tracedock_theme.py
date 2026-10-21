@@ -4,6 +4,7 @@ import math
 import sys
 import tkinter as tk
 from tkinter import ttk, font as tkfont, messagebox as native_messages, simpledialog as native_inputs
+from tracedock_layout import size_dialog
 
 BG='#e8eff5'
 SURFACE='#f4f8fb'
@@ -93,7 +94,7 @@ def glass_dialog(title,message,parent=None,initialvalue=None,input_mode=False,qu
     if parent is None:
         if input_mode:return native_inputs.askstring(title,message,initialvalue=initialvalue)
         return native_messages.askyesno(title,message) if question else native_messages.showinfo(title,message)
-    win=tk.Toplevel(parent);win.withdraw();win.title(title);win.configure(bg=BG);win.transient(parent.winfo_toplevel());win.resizable(False,False)
+    win=tk.Toplevel(parent);win.withdraw();win.title(title);win.configure(bg=BG);win.transient(parent.winfo_toplevel());win.resizable(True,True)
     icon=getattr(sys,'_MEIPASS',None)
     if icon:
         try:win.iconbitmap(icon+'/tracedock.ico')
@@ -103,7 +104,8 @@ def glass_dialog(title,message,parent=None,initialvalue=None,input_mode=False,qu
     tk.Label(card,text=title,font=('Segoe UI',13,'bold'),fg=TEXT,bg=SURFACE,anchor='w').pack(fill='x',padx=18,pady=(16,9))
     if len(str(message))>1000:
         area=tk.Frame(card,bg=SURFACE);area.pack(fill='both',expand=True,padx=18,pady=(0,12));text=tk.Text(area,height=12,width=64,wrap='word',bg=FIELD,fg=TEXT,relief='flat',font=('Segoe UI',10));scroll=ttk.Scrollbar(area,command=text.yview);scroll.pack(side='right',fill='y');text.pack(fill='both',expand=True);text.configure(yscrollcommand=scroll.set);text.insert('1.0',str(message));text.configure(state='disabled')
-    else:tk.Label(card,text=str(message),wraplength=460,justify='left',fg=MUTED,bg=SURFACE,font=('Segoe UI',10)).pack(fill='x',padx=18,pady=(0,12))
+    else:
+        label=tk.Label(card,text=str(message),wraplength=460,justify='left',fg=MUTED,bg=SURFACE,font=('Segoe UI',10));label.pack(fill='x',padx=18,pady=(0,12));label.bind('<Configure>',lambda event:label.configure(wraplength=max(100,event.width-4)))
     entry=None
     if input_mode:
         entry=ttk.Entry(card,width=52);entry.pack(fill='x',padx=18,pady=(0,14));entry.insert(0,'' if initialvalue is None else str(initialvalue));entry.select_range(0,tk.END)
@@ -113,7 +115,7 @@ def glass_dialog(title,message,parent=None,initialvalue=None,input_mode=False,qu
     if input_mode or question:GlassButton(buttons,'Vazgeç' if input_mode else 'Hayır',lambda:finish(False)).pack(side='right',padx=(7,0))
     ok=GlassButton(buttons,'Evet' if question else 'Tamam',lambda:finish(True));ok.pack(side='right')
     win.protocol('WM_DELETE_WINDOW',lambda:finish(False));win.bind('<Escape>',lambda e:finish(False));win.bind('<Return>',lambda e:finish(True));win.update_idletasks()
-    width=win.winfo_reqwidth();height=win.winfo_reqheight();x=parent.winfo_rootx()+(parent.winfo_width()-width)//2;y=parent.winfo_rooty()+(parent.winfo_height()-height)//2;win.geometry(f'+{max(0,x)}+{max(0,y)}');win.deiconify();apply_native_glass(win);win.grab_set()
+    size_dialog(win,parent,win.winfo_reqwidth(),win.winfo_reqheight());win.deiconify();apply_native_glass(win);win.grab_set()
     (entry or ok).focus_set()
     try:parent.wait_window(win)
     finally:

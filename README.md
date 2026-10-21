@@ -117,3 +117,12 @@ Ayrık imza, Windows Authenticode yayıncı sertifikası değildir. EXE için g�
 
 
 Kanal sonundaki boş / NaN / sonsuz hücreler tablo dolgusu kabul edilir ve kanal süresini uzatmaz. Sonlu sıfır değerleri ile kanalın başındaki veya ortasındaki eksik ölçümler korunur. Kaynak dosya değiştirilmez. Varsayılan eşleştirme **Kanal adına göre** seçeneğidir; farklı adlı kanalların ayrı Y eksenleri korunur.
+
+
+## Dinamik yerleşim
+
+Pencere büyütülüp küçültüldüğünde sol panel, grafik, istatistik/prob paneli ve zaman çizelgesi oranlı boyutlanır. Ayırıcıyı sürükleyerek seçtiğiniz oran sonraki boyut değişimlerinde korunur.
+
+Kanal, istatistik, prob, TDMS ayarları ve Y eksenleri tablolarında sütunlar başlık ve hücre metinlerine göre genişler. İçerik pencereye sığmazsa yatay/dikey kaydırma çubukları otomatik görünür. Shift+fare tekerleği tabloyu yatay kaydırır. Uzun dosya adları ve dar araç çubukları da yatay kaydırılabilir.
+
+TDMS, Y eksenleri ve bilgi/giriş pencereleri ekran ve ana pencere boyutuna göre açılır; yeniden boyutlandırılabilir.

@@ -110,3 +110,11 @@ TOPLU KANAL SEÇİMİ
 KANAL SONUNDAKİ BOŞ DOLGU
 • CSV/TDMS tablosunda kısa kanalların sonuna eklenen boş, NaN veya sonsuz hücreler ölçüm kabul edilmez; kanal süresi son sonlu örnekte biter. Sonlu sıfır değerleri ile kanalın başındaki ve ortasındaki eksik ölçümler korunur. Kaynak dosya değiştirilmez. Grafik, kanal süresi, prob ve CSV dışa aktarımı aynı kısaltılmış kanal görünümünü kullanır.
 • Varsayılan eşleştirme Kanal adına göre seçeneğidir. Farklı kanalları sırayla devam ettirmek isterseniz Seçili kanal sırasına göre seçeneğini kullanabilirsiniz; farklı fiziksel büyüklükleri aynı eğride birleştirmeden önce bu seçimi kontrol edin.
+
+
+DİNAMİK YERLEŞİM
+Pencere büyütülüp küçültüldüğünde sol panel, grafik, istatistik/prob paneli ve zaman çizelgesi oranlı boyutlanır. Ayırıcıyı sürükleyerek seçtiğiniz oran sonraki boyut değişimlerinde korunur.
+
+Kanal, istatistik, prob, TDMS ayarları ve Y eksenleri tablolarında sütunlar başlık ve hücre metinlerine göre genişler. İçerik pencereye sığmazsa yatay/dikey kaydırma çubukları otomatik görünür. Shift+fare tekerleği tabloyu yatay kaydırır. Uzun dosya adları ve dar araç çubukları da yatay kaydırılabilir.
+
+TDMS, Y eksenleri ve bilgi/giriş pencereleri ekran ve ana pencere boyutuna göre açılır; yeniden boyutlandırılabilir.
