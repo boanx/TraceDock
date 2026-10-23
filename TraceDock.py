@@ -618,7 +618,7 @@ class TraceDock(tk.Tk):
       self._timeline_expanded_height=max(160,self.timeline_dock.winfo_height())
       self.workarea.forget(self.timeline_dock)
       self.workarea.pack_configure(pady=(0,0))
-      self.timeline_collapsed_header.pack(side='bottom',fill='x',padx=14,pady=(0,14),before=self.workarea)
+      self.timeline_collapsed_header.pack(side='bottom',fill='x',padx=14,pady=(0,6),before=self.workarea)
     else:
       self.timeline_collapsed_header.pack_forget();self.workarea.pack_configure(pady=(0,14))
       self.workarea.add(self.timeline_dock,minsize=160,height=getattr(self,'_timeline_expanded_height',230),stretch='never')
@@ -627,8 +627,8 @@ class TraceDock(tk.Tk):
     # A collapsed timeline is outside the paned window: it cannot receive spare
     # height when a job progress bar or the graph changes the window geometry.
     self.timeline_collapsed_header=tk.Frame(self,bg='#f4f8fb',highlightthickness=1,highlightbackground='#ffffff')
-    tk.Label(self.timeline_collapsed_header,text='ZAMAN ÇİZELGESİ',fg='#007f85',bg='#f4f8fb',font=ui_font(self,9,'bold')).pack(side='left',padx=10,pady=6)
-    expand=self._button(self.timeline_collapsed_header,'Genişlet ▾',self._toggle_timeline_panel);expand.configure(pady=2);expand.pack(side='right',padx=10,pady=4)
+    tk.Label(self.timeline_collapsed_header,text='ZAMAN ÇİZELGESİ',fg='#007f85',bg='#f4f8fb',font=ui_font(self,8,'bold')).pack(side='left',padx=8,pady=1)
+    expand=tk.Button(self.timeline_collapsed_header,text='Genişlet ▾',command=self._toggle_timeline_panel,font=ui_font(self,8),bg='#f4f8fb',fg='#007f85',activebackground='#d7efee',activeforeground='#007f85',relief='flat',bd=0,highlightthickness=0,padx=6,pady=0,cursor='hand2');expand.pack(side='right',padx=8,pady=1)
     dock=tk.Frame(self.workarea,bg='#f4f8fb',height=230);dock.configure(highlightthickness=1,highlightbackground='#ffffff');dock.pack_propagate(False);self.workarea.add(dock,minsize=160,height=230,stretch='never');self.timeline_dock=dock;self._timeline_collapsed=False
     row=self._control_row(dock,fill='x',padx=10,pady=(6,2))
     tk.Label(row,text='ZAMAN ÇİZELGESİ',fg='#007f85',bg='#f4f8fb',font=ui_font(self,9,'bold')).pack(side='left',padx=(0,12))
@@ -651,7 +651,7 @@ class TraceDock(tk.Tk):
     self.timeline_canvas=tk.Canvas(area,bg='#ffffff',height=145,highlightthickness=0);self.timeline_canvas.pack(side='left',fill='both',expand=True)
     vsb=ttk.Scrollbar(area,orient='vertical',command=self._timeline_vscroll);vsb.pack(side='right',fill='y');self.timeline_canvas.configure(yscrollcommand=vsb.set)
     sb=ttk.Scrollbar(self.timeline_content,orient='horizontal',command=self._timeline_scroll);sb.pack(side='bottom',before=area,fill='x',padx=10,pady=(0,4));self.timeline_canvas.configure(xscrollcommand=sb.set)
-    c=self.timeline_canvas;c.bind('<Configure>',lambda e:self._render_timeline());c.bind('<Button-1>',self._timeline_press);c.bind('<B1-Motion>',self._timeline_motion);c.bind('<ButtonRelease-1>',self._timeline_release);c.bind('<Double-Button-1>',self._timeline_focus);c.bind('<MouseWheel>',self._timeline_wheel)
+    c=self.timeline_canvas;c.bind('<Configure>',lambda e:self._render_timeline());c.bind('<Button-1>',self._timeline_press);c.bind('<Button-3>',self._timeline_context_menu);c.bind('<B1-Motion>',self._timeline_motion);c.bind('<ButtonRelease-1>',self._timeline_release);c.bind('<Double-Button-1>',self._timeline_focus);c.bind('<MouseWheel>',self._timeline_wheel)
  def _timeline_row_info(self,uid):return next((row for row in self.timeline_rows if row['uid']==uid),self.timeline_rows[0])
  def _timeline_sync_rows(self):
     valid={r['uid'] for r in self.timeline_rows}
@@ -759,18 +759,18 @@ class TraceDock(tk.Tk):
     for i,(clip,d,start,end) in enumerate(layout):
       row_uid=clip.get('row_uid',self.timeline_rows[0]['uid']);y=28+row_indices[row_uid]*row_height;x1=margin+start*scale;x2=margin+end*scale;y1=y+3;y2=y+row_height-3;self._timeline_rects.append((clip['uid'],row_uid,x1*factor,x2*factor,y1*factor,y2*factor))
       if x2<left+margin or x1>right or y2<top+28 or y1>bottom:continue
-      color=PALETTE[row_indices[row_uid]%len(PALETTE)];selected=clip['uid']==self.timeline_selected
-      rounded_rect(c,x1,y1,x2,y2,r=6,fill='#d7efee' if selected else '#eaf2f8',outline='#007f85' if selected else '#cbdbe7',width=2 if selected else 1)
+      hidden=clip.get('hidden',False) or self._timeline_row_info(row_uid).get('hidden',False);color='#8c9aa7' if hidden else PALETTE[row_indices[row_uid]%len(PALETTE)];selected=clip['uid']==self.timeline_selected
+      rounded_rect(c,x1,y1,x2,y2,r=6,fill='#edf0f3' if hidden else '#d7efee' if selected else '#eaf2f8',outline='#c7d0d8' if hidden else '#007f85' if selected else '#cbdbe7',width=2 if selected else 1)
       if x2-x1>30:
-        names=self._clip_channels(clip,d);title=d['name']+((' / '+names[0]) if len(names)==1 else f' / {len(names)} kanal');title=self._timeline_title(title,(x2-x1-12)*factor);c.create_text(x1+6,y+title_y,text=title,fill=color,anchor='w',font=ui_font(self,9,'bold'))
+        names=self._clip_channels(clip,d);title=d['name']+((' / '+names[0]) if len(names)==1 else f' / {len(names)} kanal');title=self._timeline_title(('[Gizli] ' if hidden else '')+title,(x2-x1-12)*factor);c.create_text(x1+6,y+title_y,text=title,fill=color,anchor='w',font=ui_font(self,9,'bold'))
         if x2-x1>135:c.create_text(x1+6,y+detail_y,text=f'{elapsed_text(start)} → {elapsed_text(end)}',fill='#405d75',anchor='w',font=ui_font(self,8))
     # Fixed row labels and ruler stay visible while either scrollbar moves.
     c.create_rectangle(left,top,left+margin-6,bottom,fill='#f4f8fb',outline='')
     for row in self.timeline_rows:
       index=row_indices[row['uid']];y=28+index*row_height
       if y+row_height<top+28 or y>bottom:continue
-      rounded_rect(c,left+3,y+3,left+margin-10,y+row_height-3,r=6,fill='#d7efee' if row['uid']==self.timeline_row else '#eaf2f8',outline=PALETTE[index%len(PALETTE)])
-      c.create_text(left+12,y+title_y,text=row['name'],fill='#203449',anchor='w',font=ui_font(self,9,'bold'));c.create_text(left+12,y+detail_y,text='Aktif satır' if row['uid']==self.timeline_row else 'Seçmek için tıkla',fill='#60758a',anchor='w',font=ui_font(self,8))
+      rounded_rect(c,left+3,y+3,left+margin-10,y+row_height-3,r=6,fill='#edf0f3' if row.get('hidden',False) else '#d7efee' if row['uid']==self.timeline_row else '#eaf2f8',outline='#c7d0d8' if row.get('hidden',False) else PALETTE[index%len(PALETTE)])
+      c.create_text(left+12,y+title_y,text=row['name'],fill='#203449',anchor='w',font=ui_font(self,9,'bold'));c.create_text(left+12,y+detail_y,text='Gizli satır' if row.get('hidden',False) else 'Aktif satır' if row['uid']==self.timeline_row else 'Seçmek için tıkla',fill='#60758a',anchor='w',font=ui_font(self,8))
     c.create_rectangle(left,top,right,top+27,fill='#f4f8fb',outline='');c.create_text(left+12,top+13,text='SATIRLAR',fill='#60758a',anchor='w',font=ui_font(self,8,'bold'))
     if total>0:
       step=max(total/1000000,100/max(scale,1e-12));power=10**math.floor(math.log10(step));step=next(v*power for v in (1,2,5,10) if v*power>=step);first=max(0,math.ceil(left/scale/step))
@@ -817,6 +817,34 @@ class TraceDock(tk.Tk):
     if clip is None or target is None:return
     row,index,peers=target;remaining=[c for c in self.timeline if c['uid']!=uid];positions=[i for i,c in enumerate(remaining) if c.get('row_uid',self.timeline_rows[0]['uid'])==row];position=positions[index] if index<len(positions) else positions[-1]+1 if positions else len(remaining)
     clip['row_uid']=row;remaining.insert(position,clip);self.timeline=remaining;self.timeline_row=row;self._timeline_changed()
+ def _timeline_context_menu(self,event):
+    row_uid=self._timeline_row_at(event)
+    if row_uid is None:return
+    row=self._timeline_row_info(row_uid);clip_uid=self._timeline_hit(event)
+    clip=next((clip for clip in self.timeline if clip['uid']==clip_uid),None)
+    self.timeline_row=row_uid;self.timeline_selected=clip_uid;self._render_timeline()
+    old=getattr(self,'_timeline_menu',None)
+    if old is not None:old.destroy()
+    menu=tk.Menu(self,tearoff=False,bg='#f4f8fb',fg='#203449',activebackground='#d7efee',activeforeground='#164e58',font=ui_font(self,9));self._timeline_menu=menu
+    if clip is not None:
+      hidden=clip.get('hidden',False)
+      menu.add_command(label='Paketi göster' if hidden else 'Paketi gizle',command=lambda:self._timeline_set_hidden('packet',clip_uid,not hidden))
+      menu.add_separator()
+    row_hidden=row.get('hidden',False)
+    menu.add_command(label='Satırı göster' if row_hidden else 'Satırı gizle',command=lambda:self._timeline_set_hidden('row',row_uid,not row_hidden))
+    menu.add_separator();menu.add_command(label='Tümünü göster',command=self._timeline_show_all)
+    try:menu.tk_popup(event.x_root,event.y_root)
+    finally:menu.grab_release()
+    return 'break'
+ def _timeline_set_hidden(self,scope,uid,hidden):
+    items=self.timeline_rows if scope=='row' else self.timeline
+    item=next((item for item in items if item['uid']==uid),None)
+    if item is None:return
+    item['hidden']=hidden;self.redraw_all(preserve_view=True)
+    self.status.set(('Satır' if scope=='row' else 'Paket')+(' gizlendi' if hidden else ' gösterildi')+' • zaman konumları korunur')
+ def _timeline_show_all(self):
+    for item in self.timeline_rows+self.timeline:item['hidden']=False
+    self.redraw_all(preserve_view=True);self.status.set('Tüm satır ve paketler gösteriliyor')
  def _timeline_focus(self,event):
     uid=self._timeline_hit(event)
     if uid is None:return
@@ -1281,6 +1309,7 @@ class TraceDock(tk.Tk):
     tracks=set();policy=self.timeline_match.get();row_counts={}
     for clip,d,start,end in self._timeline_layout():
       row_uid=clip.get('row_uid',self.timeline_rows[0]['uid']);row=self._timeline_row_info(row_uid);ci=row_counts.get(row_uid,0);row_counts[row_uid]=ci+1;names=set(self._clip_channels(clip,d))
+      if row.get('hidden',False) or clip.get('hidden',False):continue
       selected_column=0
       for column,(name,y) in enumerate(d['channels'].items()):
         if name not in names:continue
@@ -1426,7 +1455,7 @@ class TraceDock(tk.Tk):
     self.ax.tick_params(axis='y',left=True,labelleft=True);series=self._plot_series();self._configure_y_axes(series);elapsed=self.xcombo.get()=='Geçen süre';budget=max(256,min(4000,60000//max(1,len(series))))
     if self.filtered_view.get():self.ax.text(.99,.985,f'Filtreli görünüm · {self._active_cutoff:g} Hz',transform=self.ax.transAxes,ha='right',va='top',fontsize=8,color='#7261c4',bbox=dict(facecolor='#ffffff',edgecolor='#cbdbe7',alpha=.9),zorder=25)
     if not series:
-      self.ax.set_xlim(0,1);self.ax.set_ylim(0,1);self.ax.text(.5,.5,'Grafik için Dosya/Kanal sütununa sağ tıklayıp zaman çizelgesine ekleyin',color='#40596f',ha='center',va='center',transform=self.ax.transAxes);self.span_artist=None;self.cursor_x=None;self.cursor_y=None;self._reset_axis_slots.clear();self._draw_guides();self.canvas.draw_idle();self._update_tables();return
+      self.ax.set_xlim(*(view[0] if view else (0,max(self._timeline_duration(),1e-9) if self.timeline else 1)));self.ax.set_ylim(*(view[1].get('L1',(0,1)) if view else (0,1)));self.ax.text(.5,.5,('Görünür veri yok. Zaman çizelgesinde sağ tık ile Göster seçin.' if self.timeline else 'Grafik için Dosya/Kanal sütununa sağ tıklayıp zaman çizelgesine ekleyin'),color='#40596f',ha='center',va='center',transform=self.ax.transAxes);self.span_artist=None;self.cursor_x=None;self.cursor_y=None;self._reset_axis_slots.clear();self._draw_guides();self.canvas.draw_idle();self._update_tables();return
     track_colors={};previous_tracks={};legend_entries=[]
     for entry in series:
       track=entry['track'];first=track not in track_colors;track_colors.setdefault(track,PALETTE[len(track_colors)%len(PALETTE)]);color=track_colors[track];slot=self._axis_slot(entry);axis=self._y_axes[slot];entry['axis']=axis;entry['axis_slot']=slot

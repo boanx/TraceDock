@@ -193,3 +193,11 @@ Daraltılmış zaman çizelgesi artık ana bölme ayırıcısından tamamen ayr�
 Zaman çizelgesinin veri satırları sabit 76 yerine yazı ölçülerine göre, 96 DPI değerinde yaklaşık 42 piksel yüksekliğinde çizilir. İki satırlı paket adı/zaman bilgisi ve satır seçimi aynı geometriyi kullanır.
 
 Lejantın metin ve çizgileri pencere boyutu/DPI/konum değişmediğinde şeffaf görüntü önbelleğinden çizilir; kanal adına tıklayarak Y ekseni seçimi korunur. Önbelleğe grafikteki eski eğriler alınmaz. Kanal/etiket değişikliği lejantı yeniden oluşturur. Sürükleme sırasında kenar boşluğu hesapları ertelenir ve daha küçük min/max çizim özeti kullanılır; fare bırakılınca ayrıntılı çizim yenilenir. Kaynak örnekler, prob hesapları ve dışa aktarılan sayısal veriler değişmez. Performans ölçümü veya arayüz işlev testi çalıştırılmadı.
+
+## İnce başlık ve satır/paket görünürlüğü (v1.0.20)
+
+Daraltılmış zaman çizelgesinin başlığındaki yazı ve Genişlet düğmesi küçültülüp dikey boşlukları azaltıldı; 96 DPI değerinde başlık yaklaşık yarı yüksekliğe iner.
+
+Zaman çizelgesindeki satır başlığına veya satırın boş kısmına sağ tıklayıp Satırı gizle / Satırı göster seçebilirsiniz. Paket üzerinde sağ tıklanınca ayrıca Paketi gizle / Paketi göster bulunur. Tümünü göster bütün satır ve paketleri açar. Gizli öğeler çizelgeden silinmez; gri ve Gizli etiketiyle kalır. Gizleme grafiği, lejantı, görünür kanal istatistiklerini, prob görünümünü ve grafik CSV/PNG dışa aktarımını etkiler. Ham kaynaklar, kayıtlı problar, paket sırası, toplam süre ve sonraki paketlerin zaman konumları korunur.
+
+Satırın gizlenmesi içindeki bütün paketleri baskılar; satırı tekrar gösterdiğinizde daha önce tek başına gizlediğiniz paketler gizli kalır. Paketler için bağımsız görünürlük ayarı korunur. Bu ayarlar mevcut oturum içindir. Arayüz işlev testi çalıştırılmadı.
