@@ -63,7 +63,7 @@ def inspect_text(path,kind='csv'):
     if signature in (b'TDSm',b'TDSh'):raise ValueError('Bu dosya NI TDMS biçiminde. “TDMS ekle” seçeneğini kullanın.')
     encoding=_encoding(path)
     with open(path,encoding=encoding,newline='') as f:sample=f.read(65536)
-    if '\x00' in sample:raise ValueError('Dosya metin/CSV biçiminde değil. Strain Gauge cihazından CSV veya TXT dışa aktarımı seçin.')
+    if '\x00' in sample:raise ValueError('Dosya metin/CSV biçiminde değil. Exlab TDMBIN dosyaları için “Exlab dosyası ekle” seçeneğini kullanın.')
     candidates=[]
     for delimiter in (',',';','\t','|'):
         try:rows=list(csv.reader(io.StringIO(sample,newline=''),delimiter=delimiter))[:80]
@@ -75,7 +75,7 @@ def inspect_text(path,kind='csv'):
     for i,row in enumerate(rows):
         if len(row)>1 and normalize(row[0]) not in METADATA and any(normalize(v) in TIME_NAMES for v in row):header_index=i;header=row;break
     if header_index is None:
-        if kind=='strain':raise ValueError('Strain Gauge tablosunun DateTime başlığı bulunamadı. CSV ekle ile genel bir tablo olarak da açabilirsiniz.')
+        if kind=='strain':raise ValueError('Exlab metin tablosunun DateTime başlığı bulunamadı. CSV ekle ile genel bir tablo olarak da açabilirsiniz.')
         for i,row in enumerate(rows):
             if not row or not any(v.strip() for v in row):continue
             if len(row)==1 and (':' in row[0] or normalize(row[0]).startswith(('version','channelamount'))):continue

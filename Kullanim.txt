@@ -1,6 +1,6 @@
 TraceDock — CSV / TDMS zaman serisi analiz uygulaması
 
-TraceDock, Exlab ile toplanmış ve CSV, TXT veya TSV olarak dışa aktarılmış ölçüm verilerini işleyebilir. Kanal adları, birimler ve desteklenen zaman bilgileri korunur. Exlab .tdmbin ham dosyaları doğrudan açılmaz; önce Exlab üzerinden dışa aktarılmalıdır.
+TraceDock, Exlab ile toplanmış ve CSV, TXT veya TSV olarak dışa aktarılmış ölçüm verilerini işleyebilir. Kanal adları, birimler ve desteklenen zaman bilgileri korunur. Desteklenen Exlab .tdmbin (v8 / double) dosyaları doğrudan açılabilir.
 
 TraceDock.exe dosyasına çift tıklayın. Kurulum, Python veya internet bağlantısı gerekmez.
 
@@ -11,7 +11,7 @@ BÜYÜK DOSYALAR
 • Grafik, görünen aralıktaki minimum ve maksimumları koruyan bir özet kullanır; yakınlaştırınca o aralığın daha ayrıntılı örnekleri çizilir. Bu işlem verilerin frekansını veya örnek sayısını değiştirmez. Dışa aktarmada seçili aralıktaki özgün örneklerin tamamı yazılır.
 
 VERİ YÜKLEME VE TDMS İŞLEME
-• “Strain Gauge dosyası ekle” ile Exlab / Strain Gauge CSV, TXT veya TSV dışa aktarımlarını; “CSV ekle” ile genel CSV tablolarını; “TDMS ekle” ile NI TDMS dosyalarını yükleyin. Birden fazla veri seti aynı oturumda açılabilir.
+• “Exlab dosyası ekle” ile Exlab TDMBIN kayıtlarını ve CSV, TXT veya TSV dışa aktarımlarını; “CSV ekle” ile genel CSV tablolarını; “TDMS ekle” ile NI TDMS dosyalarını yükleyin. Birden fazla veri seti aynı oturumda açılabilir.
 • Strain Gauge okuyucusu ay/gün/saat başında sıfır olmayan tarihleri de destekler: 2026-9-3 9:50:31.354 gibi. Kanal adları, ID ve birimler korunur; ölçüm değerleri dosyadaki sayısal değerlerle aynıdır.
 • Genel CSV dosyalarında DateTime başlığı zorunlu değildir. Başlıklı veya yalnızca sayısal sütunlardan oluşan CSV tabloları da açılır. Zaman sütunu yoksa başlangıçta 1 Hz kullanılır; dosyanın/kanalın Hz veya test süresini çift tıklayarak girin. UTF-8, UTF-16 ve Türkçe Windows metin kodlamaları, nokta/virgül ondalıklar ve virgül/noktalı virgül/sekme sütun ayıraçları desteklenir.
 • Her CSV kendi özgün örnek sayısını ve ölçüm değerlerini korur. Çizelgedeki örnek zamanları kanalın Hz ayarından hesaplanır; kaynak zaman sütunundaki duraklamalar veya saat sıfırlanmaları çizelgeye taşınmaz. Kaynaklar arasında frekans eşitlemesi yapılmaz. Kaynaklar yüklendiğinde grafiğe otomatik eklenmez; yalnızca zaman çizelgesindeki paketler çizilir.
@@ -33,7 +33,7 @@ DIŞA AKTARMA
 • “Kanal istatistiklerini CSV'ye aktar” istatistik tablosunu, “Görünen grafiği PNG olarak dışarı aktar” grafiğin mevcut görünümünü kaydeder.
 • Ondalık ayıracı nokta veya virgül olarak seçilebilir; virgül seçilince CSV sütun ayıracı noktalı virgül olur.
 
-TraceDock, Exlab CSV ve NI TDMS verilerini destekler. Exlab'in .tdmbin ham dosyasını önce Exlab'den CSV olarak dışa aktarın.
+TraceDock, Exlab CSV ve NI TDMS verilerini destekler. Exlab .tdmbin (v8 / double) dosyalarını Exlab dosyası ekle düğmesiyle açın.
 
 ZAMAN ÇİZELGESİ / ÇOK SATIRLI GRAFİK
 • Zaman çizelgesindeki her satır bağımsız bir veri dizisidir ve sıfırdan başlar. Aynı satırdaki paketler uç uca devam eder; farklı satırlar aynı grafikte üst üste gösterilir. Toplam süre, en uzun satırın süresidir.
@@ -128,3 +128,8 @@ KOMPAKT PANEL VE EKRAN ÖLÇEĞİ
 MONİTÖRLER ARASINDA TUTARLI ÖLÇEK — v1.0.10
 Fontların asıl punto değerleri saklanır; her monitörde DPI değerinden yeniden hesaplanan piksel boyutları kullanılır. Başlıklar, etiketler, girişler, düğmeler ve ttk stilleri aynı font sistemini paylaşır. Tablo sütunları gerçek hücre ve başlık fontlarıyla ölçülür. Zaman çizelgesinin satırları, sol başlık alanı ve sürükleme/tıklama koordinatları aynı ölçekle çizilir. Aktarma düğmeleri tek sırada kalır; dar alanda yatay kaydırılır.
 İki fiziksel monitör arasında geçiş bu geliştirme sırasında doğrulanmadı; EXE paketlemesi ve ayrık imza doğrulaması işlev testi değildir.
+
+
+DOĞRUDAN EXLAB TDMBIN İÇE AKTARMA — v1.0.11
+“Exlab dosyası ekle” düğmesiyle .tdmbin, .csv, .txt, .tsv ve .asc dosyaları seçilebilir. TDMBIN için ara CSV üretilmez; okuma arka planda, ilerleme ve iptal desteğiyle yapılır. Kanal adları, ID, birimler ve dosyadaki sayısal örnekler korunur. Dosyanın zaman kanalı ölçüm kanalından ayrılır; kanal frekansı başlıktan alınır. İçe aktarılan kanallar mevcut zaman çizelgesi, çarpan, Y ekseni, prob ve dışa aktarma araçlarında kullanılır.
+Desteklenen ikili biçim: Exlab TDMBIN sürüm 8, double (float64), 182 baytlık kanal kayıtları; düzen 0 ve 1. Dosya boyutu, bölüm sınırları ve blok/paket sayıları kontrol edilir. Kanal metadata alanlarındaki ek katsayılar otomatik uygulanmaz. Kaynak dosya değiştirilmez.

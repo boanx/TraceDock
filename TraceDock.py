@@ -5,6 +5,7 @@ from array import array
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from tracedock_workers import resource_plan, inspect_text, parse_file_block, parse_records, format_export_block, number
+from tracedock_tdmbin import read_tdmbin
 from numpy.lib.mixins import NDArrayOperatorsMixin
 from datetime import datetime
 from pathlib import Path
@@ -239,7 +240,12 @@ def parse_text_file(path,progress=None,cancel=None,kind='csv',pool=None,plan=Non
     return {'name':Path(path).name,'path':str(path),'source_kind':kind,'xname':layout['header'][layout['time_index']] if layout['time_index'] is not None else 'time','x':x,'x_is_date':date,'channels':parsed,'units':dict(zip(names,metadata.get('unit',['']*len(names)))),'ids':dict(zip(names,metadata.get('id',names))),'grid_rate':rate,'_base_rate':rate,'multipliers':{name:1.0 for name in parsed},'_base_x':x,'_base_channels':dict(parsed),'timing_warning':warning,'reader_workers':len(pids),'reader_pids':sorted(pids)}
 
 def parse_exlab(path,progress=None,cancel=None):return parse_text_file(path,progress,cancel,'csv')
-def parse_strain(path,progress=None,cancel=None):return parse_text_file(path,progress,cancel,'strain')
+def parse_strain(path,progress=None,cancel=None,pool=None,plan=None):
+    if Path(path).suffix.casefold()=='.tdmbin':
+        d=read_tdmbin(path,progress,lambda:check_cancel(cancel))
+        if d['x'] is None:d['x']=d['_base_x']=SampleTimeAxis(len(next(iter(d['channels'].values()))),d['grid_rate'])
+        return d
+    return parse_text_file(path,progress,cancel,'strain',pool,plan)
 
 def build_channel_cache(values,cancel=None):
     n=len(values);block_size=256;extrema=[];first=last=minimum=maximum=None
@@ -453,7 +459,7 @@ class TraceDock(tk.Tk):
     self.workarea=ResponsivePanedWindow(self,fraction=.74,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.workarea.pack(fill='both',expand=True,padx=14,pady=(0,14));body=ResponsivePanedWindow(self.workarea,fraction=.24,orient='horizontal',bg='#d9e4ed',sashwidth=5,bd=0);self.workarea.add(body,minsize=320,stretch='always'); sidebar_host=tk.Frame(body,bg='#f4f8fb',width=320);right=tk.Frame(body,bg='#f4f8fb');body.add(sidebar_host,minsize=220);body.add(right,minsize=380);sidebar_host.configure(highlightthickness=1,highlightbackground='#ffffff');right.configure(highlightthickness=1,highlightbackground='#ffffff');left=self._build_scrollable_sidebar(sidebar_host)
     self._panel_title(left,'VERİ DOSYALARI')
     file_actions=ResponsiveButtonBar(left,bg='#f4f8fb');file_actions.pack(fill='x',padx=10)
-    for label,command in [('Strain Gauge ekle',self.add_strain),('CSV ekle',self.add_csv),('TDMS ekle',self.add_tdms),('Kaldır',self.remove_file)]:
+    for label,command in [('Exlab dosyası ekle',self.add_strain),('CSV ekle',self.add_csv),('TDMS ekle',self.add_tdms),('Kaldır',self.remove_file)]:
       button=self._button(file_actions,label,command);button.configure(padx=7,pady=5);file_actions.add(button)
     file_frame=tk.Frame(left,bg='#f4f8fb');file_frame.pack(fill='x',padx=10,pady=8);file_frame.columnconfigure(0,weight=1);self.filelist=tk.Listbox(file_frame,exportselection=False,bg='#ffffff',fg='#203449',selectbackground='#d7efee',selectforeground='#203449',relief='flat',height=1,highlightthickness=0); self.filelist.grid(row=0,column=0,sticky='ew');file_h=AutoScrollbar(file_frame,orient='horizontal',command=self.filelist.xview);file_h.grid(row=1,column=0,sticky='ew');file_v=AutoScrollbar(file_frame,orient='vertical',command=self.filelist.yview);file_v.grid(row=0,column=1,sticky='ns');self.filelist.configure(xscrollcommand=file_h.set,yscrollcommand=file_v.set); self.filelist.bind('<<ListboxSelect>>',self.switch_file);self.filelist.bind('<Double-Button-1>',self.rename_dataset);self.filelist.bind('<Button-3>',self.edit_dataset_multiplier)
     self._panel_title(left,'KANALLAR • DOSYAYA GÖRE'); self.filter=tk.StringVar(); ent=ttk.Entry(left,textvariable=self.filter); ent.pack(fill='x',padx=10,pady=(0,5)); ent.insert(0,''); ent.bind('<KeyRelease>',lambda e:self.render_channels()); self.chlist=tk.Frame(left,bg='#f4f8fb',width=260,height=320);self.chlist.pack_propagate(False);self.chlist.grid_propagate(False); self.chlist.pack(fill='both',expand=True,padx=8,pady=(0,8));self._wrapped_label(left,text='Shift+tık: kanal aralığı • Ctrl+tık: çoklu seçim\nBoşluk / kutucuk: toplu aç-kapat • Çift tık: ad / Hz / süre / çarpan',fg='#60758a',bg='#f4f8fb',justify='left',anchor='w').pack(fill='x',padx=10,pady=(0,8))
@@ -791,16 +797,17 @@ class TraceDock(tk.Tk):
  def add_strain(self):self._add_text_files('strain')
  def _add_text_files(self,kind):
     if self._job is not None:return
-    title='Strain Gauge dosyalarını seçin' if kind=='strain' else 'CSV dosyalarını seçin'
-    paths=filedialog.askopenfilenames(title=title,filetypes=[('Strain Gauge / Exlab','*.csv *.txt *.tsv *.asc')] if kind=='strain' else [('CSV','*.csv'),('Tüm dosyalar','*.*')])
+    title='Exlab dosyalarını seçin' if kind=='strain' else 'CSV dosyalarını seçin'
+    paths=filedialog.askopenfilenames(title=title,filetypes=[('Exlab dosyaları','*.tdmbin *.csv *.txt *.tsv *.asc'),('Exlab ikili veri','*.tdmbin'),('Tüm dosyalar','*.*')] if kind=='strain' else [('CSV','*.csv'),('Tüm dosyalar','*.*')])
     if not paths:return
     def work(progress,cancel):
-      datasets=[];errors=[];size=sum(os.path.getsize(path) for path in paths);plan=resource_plan(size);pool=new_process_pool(plan) if size>=32*2**20 and plan['workers']>1 else None
+      datasets=[];errors=[];size=sum(os.path.getsize(path) for path in paths if Path(path).suffix.casefold()!='.tdmbin');plan=resource_plan(size);pool=new_process_pool(plan) if size>=32*2**20 and plan['workers']>1 else None
       try:
         for i,path in enumerate(paths):
           check_cancel(cancel)
           try:
-            d=parse_text_file(path,lambda f,msg:progress((i+.7*f)/len(paths),Path(path).name+' • '+msg),cancel,kind,pool,plan)
+            reader_progress=lambda f,msg:progress((i+.7*f)/len(paths),Path(path).name+' • '+msg)
+            d=parse_strain(path,reader_progress,cancel,pool,plan) if kind=='strain' else parse_text_file(path,reader_progress,cancel,kind,pool,plan)
             datasets.append(prepare_dataset(d,lambda f,msg:progress((i+.7+.3*f)/len(paths),Path(path).name+' • '+msg),cancel))
           except Cancelled:raise
           except Exception as exc:errors.append(f'{Path(path).name}: {exc}')
@@ -815,7 +822,7 @@ class TraceDock(tk.Tk):
       if errors:messagebox.showerror('Okunamayan dosyalar','\n'.join(errors),parent=self)
       warnings=[d['name']+': '+d['timing_warning'] for d in datasets if d.get('timing_warning')]
       if warnings:messagebox.showinfo('Zaman bilgisi','\n'.join(warnings),parent=self)
-    self._start_job('Strain Gauge yükleniyor' if kind=='strain' else 'CSV yükleniyor',work,complete)
+    self._start_job('Exlab yükleniyor' if kind=='strain' else 'CSV yükleniyor',work,complete)
 
  def _refresh_values(self):
     for d in self.datasets:

@@ -8,9 +8,9 @@ CSV, NI TDMS ve Exlab ölçüm verilerini zaman çizelgesinde düzenlemek, karş
 
 ## Exlab desteği
 
-**Exlab ile toplanmış ölçüm verileri işlenebilir.** Exlab üzerinden CSV, TXT veya TSV olarak dışa aktarılan dosyalar, **Strain Gauge dosyası ekle** düğmesiyle yüklenir. Kanal adları, birimler ve desteklenen zaman damgaları korunur.
+**Exlab ile toplanmış ölçüm verileri işlenebilir.** Exlab üzerinden CSV, TXT veya TSV olarak dışa aktarılan dosyalar ve desteklenen TDMBIN kayıtları, **Exlab dosyası ekle** düğmesiyle yüklenir. Kanal adları, birimler ve desteklenen zaman damgaları korunur.
 
-Exlab'in `.tdmbin` ham dosyaları doğrudan açılmaz; önce Exlab üzerinden desteklenen bir metin biçimine dışa aktarılmalıdır.
+Exlab `.tdmbin` dosyaları **Exlab dosyası ekle** düğmesiyle doğrudan açılır. Gönderilen EX1629 kaydıyla aynı v8 / double biçimi ve kanallara göre bloklu veya satır sıralı düzen desteklenir. Bilinmeyen sürüm ve veri düzenleri açıklayıcı hatayla reddedilir.
 
 ## Temel özellikler
 
@@ -143,3 +143,9 @@ Sol panel başlangıçta pencere genişliğinin yaklaşık %24’ünü kullanır
 
 Fontların asıl punto değerleri saklanır; her monitörde DPI değerinden yeniden hesaplanan piksel boyutları kullanılır. Başlıklar, etiketler, girişler, düğmeler ve ttk stilleri aynı font sistemini paylaşır. Tablo sütunları gerçek hücre ve başlık fontlarıyla ölçülür. Zaman çizelgesinin satırları, sol başlık alanı ve sürükleme/tıklama koordinatları aynı ölçekle çizilir. Aktarma düğmeleri tek sırada kalır; dar alanda yatay kaydırılır.
 İki fiziksel monitör arasında geçiş bu geliştirme sırasında doğrulanmadı; EXE paketlemesi ve ayrık imza doğrulaması işlev testi değildir.
+
+
+## Doğrudan Exlab TDMBIN içe aktarma (v1.0.11)
+
+“Exlab dosyası ekle” düğmesiyle .tdmbin, .csv, .txt, .tsv ve .asc dosyaları seçilebilir. TDMBIN için ara CSV üretilmez; okuma arka planda, ilerleme ve iptal desteğiyle yapılır. Kanal adları, ID, birimler ve dosyadaki sayısal örnekler korunur. Dosyanın zaman kanalı ölçüm kanalından ayrılır; kanal frekansı başlıktan alınır. İçe aktarılan kanallar mevcut zaman çizelgesi, çarpan, Y ekseni, prob ve dışa aktarma araçlarında kullanılır.
+Desteklenen ikili biçim: Exlab TDMBIN sürüm 8, double (float64), 182 baytlık kanal kayıtları; düzen 0 ve 1. Dosya boyutu, bölüm sınırları ve blok/paket sayıları kontrol edilir. Kanal metadata alanlarındaki ek katsayılar otomatik uygulanmaz. Kaynak dosya değiştirilmez.
