@@ -185,3 +185,15 @@ Daraltılmış zaman çizelgesinin başlığındaki yazı ve Genişlet düğmesi
 Zaman çizelgesindeki satır başlığına veya satırın boş kısmına sağ tıklayıp Satırı gizle / Satırı göster seçebilirsiniz. Paket üzerinde sağ tıklanınca ayrıca Paketi gizle / Paketi göster bulunur. Tümünü göster bütün satır ve paketleri açar. Gizli öğeler çizelgeden silinmez; gri ve Gizli etiketiyle kalır. Gizleme grafiği, lejantı, görünür kanal istatistiklerini, prob görünümünü ve grafik CSV/PNG dışa aktarımını etkiler. Ham kaynaklar, kayıtlı problar, paket sırası, toplam süre ve sonraki paketlerin zaman konumları korunur.
 
 Satırın gizlenmesi içindeki bütün paketleri baskılar; satırı tekrar gösterdiğinizde daha önce tek başına gizlediğiniz paketler gizli kalır. Paketler için bağımsız görünürlük ayarı korunur. Bu ayarlar mevcut oturum içindir. Arayüz işlev testi çalıştırılmadı.
+
+EĞRİ RENKLERİNİ DEĞİŞTİRME — v1.0.21
+
+Lejanttaki eğri adına sol veya sağ tıklayıp “Eğri rengini değiştir…” seçeneğini kullanın. Lejant kapalıysa grafikteki eğriye sağ tıklayarak aynı menüyü açabilirsiniz. Açılan renk seçicisinden renk seçin; İptal mevcut rengi korur. “Varsayılan renge dön” otomatik palet rengini geri yükler.
+
+Seçim aynı satırdaki eşleştirilmiş eğrinin bütün devam paketlerine, lejanttaki çizgiye, prob işaretlerine ve PNG çıktısına uygulanır. Başka satırdaki eğriler bağımsızdır. Gizle/göster, filtre, çarpan veya yakınlaştırma değişince renk korunur; renk değişirken yakınlaştırma korunur. Lejant önbelleği yeni renkle yeniden oluşturulur. Renkler mevcut oturum içindir; kaynak dosya ve CSV sayısal değerleri etkilenmez. Sağ sürükleme ile kaydırma ve prob üzerinde sağ tıkla etiket aç/kapat korunur. Arayüz işlev testi çalıştırılmadı.
+
+DOSYA, KANAL VE PAKET BİRİMLERİNİ DÜZENLEME
+
+Dosya/Kanal tablosuna Birim sütunu eklendi. Kanalın Birim hücresine çift tıklayarak tek kanalın; dosya satırındaki hücreye çift tıklayarak dosyadaki tüm kanalların birimini düzenleyebilirsiniz. Dosya/Kanal sağ tık menüsünde de Birim değiştir bulunur. Zaman çizelgesindeki pakete sağ tıklayıp Paket birimini değiştir ile yalnızca o pakete ortak birim atayın. Kaynak birimlerini kullan bu paket atamasını kaldırır.
+
+Birim düzenlemesi etiket/metaveri değişikliğidir; örnekler otomatik dönüştürülmez. Örneğin N → kN dönüşümü için ayrıca 0,001 çarpanı girilmelidir. Y eksenleri etkin eğrilerin birimlerini gösterir; aynı eksende farklı birimler varsa her biri listelenir, eksik birim “birimsiz” olarak belirtilir. Farklı fiziksel büyüklükleri mevcut Y ekseni seçenekleriyle ayırabilirsiniz. Lejant ve CSV başlıkları birimi içerir; farklı birimli devam paketleri CSV içinde ayrı seriler olarak aktarılır. Birim ayarları mevcut oturum içindir.
