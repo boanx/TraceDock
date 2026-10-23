@@ -3,6 +3,15 @@ import ctypes
 import sys
 
 
+def set_windows_app_id():
+    """Group the frozen application under its own identity, including taskbar icons."""
+    if sys.platform == 'win32':
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('boanx.TraceDock.Desktop')
+        except (OSError, AttributeError):
+            pass
+
+
 def enable_dpi_awareness():
     # Run before Tk creates any HWND. Frozen builds also need the manifest:
     # Windows can reject changing a process mode already set by its manifest.

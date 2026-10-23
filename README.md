@@ -173,3 +173,9 @@ Açılır kutular aynı ölçülen yazı tipini kullanır; varsayılan seçim ve
 Zaman çizelgesindeki “Daralt” düğmesi paneli yalnızca başlık ve “Genişlet” düğmesinin göründüğü tek satıra sabitler. Daraltılmış panelin ayırıcısı gizlenir ve sürüklenerek yüksekliği değiştirilemez. Pencere boyutu değişse de başlık yüksekliği korunur; yeniden genişletildiğinde önceki bölme oranı geri gelir.
 
 Veri dosyaları başlığındaki “‹” düğmesi dosya ve kanal panelini dar bir dikey yan bara kapatır. Yan bardaki “›” veya “VERİ DOSYALARI” alanına tıklayarak paneli yeniden açabilirsiniz; klavyede Enter/Boşluk da kullanılabilir. Panel açıldığında önceki genişlik oranı geri gelir. Dar yan bar pencere ve DPI değişimlerinde aynı mantıksal genişlikte kalır. Bu düzenleme fiziksel monitörlerde işlev testi çalıştırılmadan paketlendi.
+
+## Grafik alanı ve simge düzenlemesi (v1.0.16)
+
+Grafik kenar boşlukları sabit yüzde yerine çizilen eksen başlıkları ve sayıların gerçek piksel sınırlarına göre hesaplanır. Tek Y ekseniyle geniş pencerelerde sol boşluk küçülür; ek Y eksenleri için gereken alan korunur. Pencere boyutu ve eksen ölçeği değiştiğinde yerleşim yenilenir. Filtreli görünüm, Kesim (Hz) ve Uygula en üst araç satırındadır; satır sığmazsa yatay kaydırılabilir.
+
+Mevcut TraceDock logosunun ICO içindeki farklı çözünürlükleri pencere simgesine ve varsayılan alt pencere simgelerine atanır. Windows görev çubuğu için uygulamaya sabit bir kimlik verilir; başlık logosu DPI değerine uygun ICO boyutunu kullanır. EXE aynı ICO kaynağıyla paketlenir. Fiziksel monitörlerde arayüz işlev testi çalıştırılmadı.

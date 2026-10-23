@@ -9,14 +9,15 @@ from tracedock_tdmbin import read_tdmbin
 from numpy.lib.mixins import NDArrayOperatorsMixin
 from datetime import datetime
 from pathlib import Path
-from tracedock_dpi import enable_dpi_awareness, watch_window_dpi, display_fonts, ui_font
-if __name__ == '__main__':enable_dpi_awareness()
+from tracedock_dpi import enable_dpi_awareness, watch_window_dpi, display_fonts, ui_font, set_windows_app_id
+if __name__ == '__main__':set_windows_app_id();enable_dpi_awareness()
 import tkinter as tk
 from tkinter import ttk, filedialog
 from tracedock_theme import GlassButton, GlassMessages as messagebox, GlassInputs as simpledialog, apply_native_glass, rounded_rect
 from tracedock_layout import AdaptiveCombobox, AdaptiveTreeview, AutoScrollbar, ResponsivePanedWindow, HorizontalScrollFrame, ResponsiveButtonBar, size_dialog
 import numpy as np
 from scipy.signal import butter, sosfiltfilt
+from PIL import Image, ImageTk
 from nptdms import TdmsFile
 import matplotlib
 matplotlib.use('TkAgg')
@@ -451,9 +452,11 @@ class TraceDock(tk.Tk):
     super().__init__(); self.title('TraceDock'); window_width=min(1500,max(640,self.winfo_screenwidth()-60));window_height=min(920,max(480,self.winfo_screenheight()-100));self.geometry(f'{window_width}x{window_height}');self.minsize(min(900,window_width),min(620,window_height)); self.configure(bg='#e8eff5')
     self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Kanal adına göre');self.datasets=[]; self.active=0; self.selected=set();self._tree_anchor=None; self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None;self._channel_axes={};self._track_axes={};self._y_axes={};self._reset_axis_slots=set();self._legend_artist=None;self._legend_targets=[];self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}
     icon_path=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))/'tracedock.ico'
+    self._window_icons={}
     if icon_path.exists():
-      try:self.iconbitmap(str(icon_path))
-      except Exception:pass
+      with Image.open(icon_path) as icon:
+        self._window_icons={size[0]:ImageTk.PhotoImage(icon.ico.getimage(size),master=self) for size in sorted(icon.ico.sizes())}
+      self.iconbitmap(default=str(icon_path));self.iconphoto(True,*self._window_icons.values())
     self.filtered_view=tk.BooleanVar(value=False);self.filter_cutoff=tk.StringVar(value='10');self._active_cutoff=10.0
     self._style(); self._build(); self.load_default_config(); self.redraw_all()
     watch_window_dpi(self)
@@ -508,14 +511,14 @@ class TraceDock(tk.Tk):
     exports=self._control_row(toolbar,fill='x',pady=(4,0))
     for label,command in [("Görünen grafiği CSV'ye aktar",self.export_graph_csv),("Seçili aralığı CSV'ye aktar",self.export_span_csv),("Kanal istatistiklerini CSV'ye aktar",self.export_stats_csv),("Görünen grafiği PNG olarak dışarı aktar",self.export_graph_png)]:
       self._button(exports,label,command).pack(side='left',padx=(0,6))
-    filter_controls=self._control_row(toolbar,fill='x',pady=(4,0))
+    filter_controls=bar
     self._filter_toggle=ttk.Checkbutton(filter_controls,text='Filtreli görünüm',variable=self.filtered_view,command=self._toggle_filtered_view);self._filter_toggle.pack(side='left',padx=(0,8))
     ttk.Label(filter_controls,text='Kesim (Hz)').pack(side='left',padx=(4,3))
     self._filter_entry=ttk.Entry(filter_controls,textvariable=self.filter_cutoff,width=8);self._filter_entry.pack(side='left',padx=3);self._filter_entry.bind('<Return>',lambda e:self._apply_filter_frequency())
     self._filter_apply=self._button(filter_controls,'Uygula',self._apply_filter_frequency);self._filter_apply.pack(side='left',padx=3)
 
     self.coords=tk.StringVar(value='X = —    Y = —');bar3=self._control_row(toolbar,fill='x',pady=(3,0));self._button(bar3,'Y eksenleri',self._show_y_axes).pack(side='right',padx=(6,0));ttk.Checkbutton(bar3,text='Lejantı göster',variable=self.legend_visible,command=self._toggle_legend).pack(side='right',padx=(8,0));tk.Label(bar3,text='Sol tık: prob ekle/sil • Sağ tık: prob etiketi • Sol sürükle: aralık • Sağ sürükle: kaydır • Tekerlek / orta tuş: zoom',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=2)
-    self.graph_panels=ResponsivePanedWindow(right,fraction=.73,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.graph_panels.pack(fill='both',expand=True,padx=10,pady=(0,8));plotbox=tk.Frame(self.graph_panels,bg='#f4f8fb');self.graph_panels.add(plotbox,minsize=120,stretch='always');readout=tk.Label(plotbox,textvariable=self.coords,fg='#405d75',bg='#f4f8fb',font=ui_font(self,8),anchor='w',justify='left',padx=6,pady=2);readout.pack(side='bottom',fill='x');readout.bind('<Configure>',lambda e:readout.configure(wraplength=max(150,e.width-12))); self.fig=Figure(figsize=(9,5),dpi=100,facecolor='#f4f8fb');self.ax=self.fig.add_subplot(111);self.ax.set_facecolor('#ffffff');self.fig.subplots_adjust(left=.09,right=.985,top=.97,bottom=.12);self.canvas=FigureCanvasTkAgg(self.fig,master=plotbox);self.canvas.get_tk_widget().pack(fill='both',expand=True);self.canvas.mpl_connect('motion_notify_event',self.on_motion);self.canvas.mpl_connect('button_press_event',self.on_press);self.canvas.mpl_connect('button_release_event',self.on_release);self.canvas.mpl_connect('scroll_event',self.on_scroll);self.canvas.mpl_connect('resize_event',self._on_graph_resize)
+    self.graph_panels=ResponsivePanedWindow(right,fraction=.73,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.graph_panels.pack(fill='both',expand=True,padx=10,pady=(0,8));plotbox=tk.Frame(self.graph_panels,bg='#f4f8fb');self.graph_panels.add(plotbox,minsize=120,stretch='always');readout=tk.Label(plotbox,textvariable=self.coords,fg='#405d75',bg='#f4f8fb',font=ui_font(self,8),anchor='w',justify='left',padx=6,pady=2);readout.pack(side='bottom',fill='x');readout.bind('<Configure>',lambda e:readout.configure(wraplength=max(150,e.width-12))); self.fig=Figure(figsize=(9,5),dpi=100,facecolor='#f4f8fb');self.ax=self.fig.add_subplot(111);self.ax.set_facecolor('#ffffff');self.fig.subplots_adjust(left=.07,right=.99,top=.98,bottom=.11);self.canvas=FigureCanvasTkAgg(self.fig,master=plotbox);self.canvas.get_tk_widget().pack(fill='both',expand=True);self.canvas.mpl_connect('motion_notify_event',self.on_motion);self.canvas.mpl_connect('button_press_event',self.on_press);self.canvas.mpl_connect('button_release_event',self.on_release);self.canvas.mpl_connect('scroll_event',self.on_scroll);self.canvas.mpl_connect('resize_event',self._on_graph_resize)
     measurements=tk.Frame(self.graph_panels,bg='#f4f8fb',height=170);measurements.pack_propagate(False);self.graph_panels.add(measurements,minsize=100,height=170,stretch='always');self.tables=ttk.Notebook(measurements);self.tables.pack(fill='both',expand=True,padx=4,pady=4);stats_tab=tk.Frame(self.tables,bg='#f4f8fb');probe_tab=tk.Frame(self.tables,bg='#f4f8fb');self.tables.add(stats_tab,text='Kanal istatistikleri');self.tables.add(probe_tab,text='Problar');cols=('channel','start','end','min','max');self.table=AdaptiveTreeview(stats_tab,columns=cols,show='headings',height=4);labels=['Kanal','Başlangıç','Bitiş','Minimum','Maksimum'];widths=[280,150,150,150,150]
     for c,l,w in zip(cols,labels,widths):self.table.heading(c,text=l,command=lambda col=c:self.sort_tree(self.table,col));self.table.column(c,width=w,anchor='w' if c=='channel' else 'e')
     self._pack_measurement_table(self.table,stats_tab);pcols=('channel','probe','x','y');self.probe_table=AdaptiveTreeview(probe_tab,columns=pcols,show='headings',height=4)
@@ -526,9 +529,12 @@ class TraceDock(tk.Tk):
     self._job_cancel=self._button(self._job_bar,'İptal',self._cancel_job);self._job_cancel.pack(side='right',padx=8)
     self.canvas.mpl_connect('draw_event',self._on_canvas_draw);self.protocol('WM_DELETE_WINDOW',self._close_app);self._sidebar_bind_widgets(self.sidebar_content)
  def _add_brand_logo(self,parent):
-    path=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))/'tracedock.png'
-    if not path.exists():return
-    image=tk.PhotoImage(file=str(path));self._brand_logo=image.subsample(max(1,round(image.width()/40)),max(1,round(image.height()/40)));tk.Label(parent,image=self._brand_logo,bg='#e8eff5').pack(side='left',padx=(0,10),pady=6)
+    if not self._window_icons:return
+    label=tk.Label(parent,bg='#e8eff5');label.pack(side='left',padx=(0,10),pady=6)
+    def refresh(event=None):
+      target=32*display_fonts(self).dpi/96;size=min(self._window_icons,key=lambda size:abs(size-target))
+      label.configure(image=self._window_icons[size])
+    label.bind('<<DisplayScaleChanged>>',refresh,add='+');refresh()
  def _paint_sidebar_rail(self,event=None):
     c=self._sidebar_rail;c.delete('all');width=max(1,c.winfo_width());scale=display_fonts(self).dpi/96
     c.create_text(width/2,round(20*scale),text='›',font=ui_font(self,16,'bold'),fill='#007f85')
@@ -1351,9 +1357,36 @@ class TraceDock(tk.Tk):
       side='left' if slot.startswith('L') else 'right';axis.spines[side].set_color(color);axis.spines[side].set_linewidth(1.1)
     self.ax.spines['right'].set_visible(False);self.ax.spines['top'].set_visible(False)
     if series and 'L1' not in self._used_axis_slots:self.ax.tick_params(axis='y',left=False,labelleft=False);self.ax.set_ylabel('');self.ax.spines['left'].set_visible(False)
- def _layout_y_axes(self):
-    width=max(450,self.fig.bbox.width);left=(170 if 'L2' in self._used_axis_slots else 80)/width;right=1-(170 if 'R2' in self._used_axis_slots else 88 if 'R1' in self._used_axis_slots else 18)/width
-    self.fig.subplots_adjust(left=min(.30,max(.09,left)),right=max(.65,min(.985,right)),top=.97,bottom=.12)
+ def _layout_y_axes(self,renderer=None):
+    width=max(1,self.fig.bbox.width);height=max(1,self.fig.bbox.height);point=self.fig.dpi/72;pad=6*point
+    if renderer is None:
+      left=(54+(68 if 'L2' in self._used_axis_slots else 0))*point
+      right=(54+(68 if 'R2' in self._used_axis_slots else 0))*point if {'R1','R2'}&self._used_axis_slots else pad
+      bottom=40*point;top=10*point
+    else:
+      boxes=[]
+      for axis in self._y_axes.values():
+        if axis.yaxis.get_visible():
+          box=axis.yaxis.get_tightbbox(renderer)
+          if box is not None:boxes.append(box)
+      box=self.ax.xaxis.get_tightbbox(renderer)
+      if box is not None:boxes.append(box)
+      plot=self.ax.bbox
+      left=max([pad]+[plot.x0-box.x0+pad for box in boxes])
+      right=max([pad]+[box.x1-plot.x1+pad for box in boxes])
+      bottom=max([pad]+[plot.y0-box.y0+pad for box in boxes])
+      top=max([pad]+[box.y1-plot.y1+pad for box in boxes])
+    # Pixel margins follow rendered labels, rather than growing as a fixed
+    # percentage of a wide window. Keep some plot area on very small windows.
+    if left+right>width*.75:
+      ratio=width*.75/(left+right);left*=ratio;right*=ratio
+    if top+bottom>height*.65:
+      ratio=height*.65/(top+bottom);top*=ratio;bottom*=ratio
+    target=(left/width,1-right/width,bottom/height,1-top/height)
+    current=self.fig.subplotpars
+    previous=(current.left,current.right,current.bottom,current.top)
+    if max(abs(a-b)*size for a,b,size in zip(target,previous,(width,width,height,height)))<1:return False
+    self.fig.subplots_adjust(left=target[0],right=target[1],bottom=target[2],top=target[3]);return True
  def _on_graph_resize(self,event):
     if not hasattr(self,'_used_axis_slots'):return
     self._layout_y_axes();self._background=None;self._schedule_detail()
@@ -1426,6 +1459,8 @@ class TraceDock(tk.Tk):
     self._background=None;self.canvas.draw_idle()
  def _on_canvas_draw(self,event):
     if event.canvas is not self.canvas:return
+    if self._layout_y_axes(event.renderer):
+      self._background=None;self.after_idle(self.canvas.draw_idle);return
     self._background=self.canvas.copy_from_bbox(self.ax.bbox)
     self._blit_cursor()
  def _blit_cursor(self):
