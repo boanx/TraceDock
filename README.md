@@ -183,3 +183,7 @@ Mevcut TraceDock logosunun ICO içindeki farklı çözünürlükleri pencere sim
 ## Veri eklerken daraltılmış durumu koruma (v1.0.17)
 
 Daraltılmış zaman çizelgesine veri veya yeni satır eklendiğinde panel otomatik genişlemez; tek başlık satırı yüksekliği ve kilitli ayırıcı korunur. Veriler grafiğe eklenmeye devam eder. Panel yalnızca Genişlet düğmesiyle açılır. Veri ekleme yolundaki eski otomatik genişletme çağrısı kaldırıldı; gizli satıra kaydırma işlemi daraltılmış durumda atlanır. Arayüz işlev testi çalıştırılmadı.
+
+## İşlemler sırasında daraltılmış başlık yüksekliği (v1.0.18)
+
+Daraltılmış zaman çizelgesi artık ana bölme ayırıcısından tamamen ayrılan, doğal başlık yüksekliğinde bağımsız bir alt satırdır. Filtre/okuma/dışa aktarma ilerleme çubuğunun açılıp kapanması bu satıra fazladan yükseklik veremez. Daraltılmış durumda yalnızca başlık ve Genişlet düğmesi görünür; ayırıcı yoktur. Genişletildiğinde mevcut zaman çizelgesi verileri ve önceki bölme oranı korunarak düzenleme paneli geri eklenir. Arayüz işlev testi çalıştırılmadı.

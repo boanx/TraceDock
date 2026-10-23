@@ -548,8 +548,6 @@ class TraceDock(tk.Tk):
  def _sync_collapsed_panels(self,event=None):
     if getattr(self,'_sidebar_collapsed',False):
       self._sidebar_body.fix_pane(0,round(38*display_fonts(self).dpi/96));self._paint_sidebar_rail()
-    if getattr(self,'_timeline_collapsed',False):
-      self.workarea.fix_pane(1,self.timeline_header.winfo_reqheight()+10)
  def _build_scrollable_sidebar(self,parent):
     parent.rowconfigure(0,weight=1);parent.columnconfigure(0,weight=1)
     self.sidebar_canvas=tk.Canvas(parent,bg='#f4f8fb',highlightthickness=0,bd=0,width=300,yscrollincrement=24,xscrollincrement=24);self.sidebar_canvas.grid(row=0,column=0,sticky='nsew')
@@ -616,14 +614,22 @@ class TraceDock(tk.Tk):
  def _toggle_timeline_panel(self):
     self._timeline_collapsed=not self._timeline_collapsed
     if self._timeline_collapsed:
-      self.timeline_content.pack_forget();self.timeline_header_details.pack_forget();self.timeline_total_label.pack_forget();self.timeline_fold_button.configure(text='Genişlet ▾')
-      self.after_idle(self._sync_collapsed_panels)
+      self._timeline_expanded_height=max(160,self.timeline_dock.winfo_height())
+      self.workarea.forget(self.timeline_dock)
+      self.workarea.pack_configure(pady=(0,0))
+      self.timeline_collapsed_header.pack(side='bottom',fill='x',padx=14,pady=(0,14),before=self.workarea)
     else:
-      self.timeline_total_label.pack(side='right');self.timeline_header_details.pack(side='left');self.timeline_content.pack(fill='both',expand=True)
-      self.timeline_fold_button.configure(text='Daralt ▴');self.workarea.release_fixed_pane()
+      self.timeline_collapsed_header.pack_forget();self.workarea.pack_configure(pady=(0,14))
+      self.workarea.add(self.timeline_dock,minsize=160,height=getattr(self,'_timeline_expanded_height',230),stretch='never')
+      self.after_idle(self.workarea.resize_panes);self.after_idle(self._timeline_reveal_row)
  def _build_timeline(self):
+    # A collapsed timeline is outside the paned window: it cannot receive spare
+    # height when a job progress bar or the graph changes the window geometry.
+    self.timeline_collapsed_header=tk.Frame(self,bg='#f4f8fb',highlightthickness=1,highlightbackground='#ffffff')
+    tk.Label(self.timeline_collapsed_header,text='ZAMAN ÇİZELGESİ',fg='#007f85',bg='#f4f8fb',font=ui_font(self,9,'bold')).pack(side='left',padx=10,pady=6)
+    expand=self._button(self.timeline_collapsed_header,'Genişlet ▾',self._toggle_timeline_panel);expand.configure(pady=2);expand.pack(side='right',padx=10,pady=4)
     dock=tk.Frame(self.workarea,bg='#f4f8fb',height=230);dock.configure(highlightthickness=1,highlightbackground='#ffffff');dock.pack_propagate(False);self.workarea.add(dock,minsize=160,height=230,stretch='never');self.timeline_dock=dock;self._timeline_collapsed=False
-    row=self._control_row(dock,fill='x',padx=10,pady=(6,2));self.timeline_header=row.master.master;self.timeline_header.bind('<Configure>',lambda e:self._sync_collapsed_panels(),add='+')
+    row=self._control_row(dock,fill='x',padx=10,pady=(6,2))
     tk.Label(row,text='ZAMAN ÇİZELGESİ',fg='#007f85',bg='#f4f8fb',font=ui_font(self,9,'bold')).pack(side='left',padx=(0,12))
     self.timeline_fold_button=self._button(row,'Daralt ▴',self._toggle_timeline_panel);self.timeline_fold_button.configure(pady=2);self.timeline_fold_button.pack(side='right',padx=(8,0))
     self.timeline_total=tk.StringVar(value='Toplam: 00:00:00.0000')
