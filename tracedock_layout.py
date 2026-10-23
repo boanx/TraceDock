@@ -13,6 +13,38 @@ class AutoScrollbar(ttk.Scrollbar):
         super().set(first, last)
 
 
+class AdaptiveCombobox(ttk.Combobox):
+    """Use one measured font for text, requested geometry and the popup list."""
+    def __init__(self, parent, **kwargs):
+        self._minimum_width = int(kwargs.get('width', 12))
+        kwargs['font'] = ui_font(parent, 9)
+        super().__init__(parent, **kwargs)
+        self.bind('<<DisplayScaleChanged>>', self._refresh_metrics, add='+')
+        self.bind('<Map>', self._refresh_metrics, add='+')
+
+    def configure(self, cnf=None, **kwargs):
+        options = {**(cnf if isinstance(cnf, dict) else {}), **kwargs}
+        result = super().configure(cnf, **kwargs)
+        if 'values' in options:
+            self.after_idle(self._refresh_metrics)
+        return result
+
+    config = configure
+
+    def _refresh_metrics(self, event=None):
+        if not self.winfo_exists():
+            return
+        font = ui_font(self, 9)
+        self.configure(font=font)
+        # ttk's width is in average characters, not pixels. Reserve enough room
+        # for the longest choice without shrinking the caller's minimum width.
+        choices = self.tk.splitlist(self.cget('values'))
+        widest = max((font.measure(str(value)) for value in (*choices, self.get())), default=0)
+        width = max(self._minimum_width, (widest + max(1, font.measure('0')) - 1)//max(1, font.measure('0')) + 2)
+        self.configure(width=width)
+        self.option_add('*TCombobox*Listbox.font', font)
+
+
 class AdaptiveTreeview(ttk.Treeview):
     """Measure cell contents once per update; resizing only redistributes space."""
     def __init__(self, *args, **kwargs):
@@ -180,7 +212,7 @@ class HorizontalScrollFrame(tk.Frame):
     def __init__(self, parent, **kwargs):
         super().__init__(parent, **kwargs)
         self.columnconfigure(0, weight=1)
-        self.canvas = tk.Canvas(self, bg=self.cget('bg'), highlightthickness=0, height=1)
+        self.canvas = tk.Canvas(self, bg=self.cget('bg'), highlightthickness=0, bd=0, height=1)
         self.canvas.grid(row=0, column=0, sticky='ew')
         self.scroll = AutoScrollbar(self, orient='horizontal', command=self.canvas.xview)
         self.scroll.grid(row=1, column=0, sticky='ew')
@@ -190,6 +222,7 @@ class HorizontalScrollFrame(tk.Frame):
         self._pending = None
         self.content.bind('<Configure>', self._schedule)
         self.canvas.bind('<Configure>', self._schedule)
+        self.bind('<<DisplayScaleChanged>>', self._schedule, add='+')
         self.bind('<Destroy>', self._destroy_layout, add='+')
 
     def _destroy_layout(self, event):
@@ -206,7 +239,10 @@ class HorizontalScrollFrame(tk.Frame):
         width = max(self.canvas.winfo_width(), self.content.winfo_reqwidth())
         height = self.content.winfo_reqheight()
         self.canvas.configure(height=height, scrollregion=(0, 0, width, height))
-        self.canvas.itemconfigure(self.window, width=width, height=height)
+        # Keep the embedded frame at its natural requested height. Freezing its
+        # height prevents font/DPI changes from propagating, clipping entry text
+        # and leaving stale oversized gaps between control rows.
+        self.canvas.itemconfigure(self.window, width=width, height=0)
 
 
 def size_dialog(window, parent, width, height):

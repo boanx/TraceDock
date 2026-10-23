@@ -14,7 +14,7 @@ if __name__ == '__main__':enable_dpi_awareness()
 import tkinter as tk
 from tkinter import ttk, filedialog
 from tracedock_theme import GlassButton, GlassMessages as messagebox, GlassInputs as simpledialog, apply_native_glass, rounded_rect
-from tracedock_layout import AdaptiveTreeview, AutoScrollbar, ResponsivePanedWindow, HorizontalScrollFrame, ResponsiveButtonBar, size_dialog
+from tracedock_layout import AdaptiveCombobox, AdaptiveTreeview, AutoScrollbar, ResponsivePanedWindow, HorizontalScrollFrame, ResponsiveButtonBar, size_dialog
 import numpy as np
 from scipy.signal import butter, sosfiltfilt
 from nptdms import TdmsFile
@@ -492,7 +492,7 @@ class TraceDock(tk.Tk):
       button=self._button(file_actions,label,command);button.configure(padx=7,pady=5);file_actions.add(button)
     file_frame=tk.Frame(left,bg='#f4f8fb');file_frame.pack(fill='x',padx=10,pady=8);file_frame.columnconfigure(0,weight=1);self.filelist=tk.Listbox(file_frame,exportselection=False,bg='#ffffff',fg='#203449',selectbackground='#d7efee',selectforeground='#203449',relief='flat',height=1,highlightthickness=0); self.filelist.grid(row=0,column=0,sticky='ew');file_h=AutoScrollbar(file_frame,orient='horizontal',command=self.filelist.xview);file_h.grid(row=1,column=0,sticky='ew');file_v=AutoScrollbar(file_frame,orient='vertical',command=self.filelist.yview);file_v.grid(row=0,column=1,sticky='ns');self.filelist.configure(xscrollcommand=file_h.set,yscrollcommand=file_v.set); self.filelist.bind('<<ListboxSelect>>',self.switch_file);self.filelist.bind('<Double-Button-1>',self.rename_dataset);self.filelist.bind('<Button-3>',self.edit_dataset_multiplier)
     self._panel_title(left,'KANALLAR • DOSYAYA GÖRE'); self.filter=tk.StringVar(); ent=ttk.Entry(left,textvariable=self.filter); ent.pack(fill='x',padx=10,pady=(0,5)); ent.insert(0,''); ent.bind('<KeyRelease>',lambda e:self.render_channels()); self.chlist=tk.Frame(left,bg='#f4f8fb',width=260,height=320);self.chlist.pack_propagate(False);self.chlist.grid_propagate(False); self.chlist.pack(fill='both',expand=True,padx=8,pady=(0,8));self._wrapped_label(left,text='Shift+tık: kanal aralığı • Ctrl+tık: çoklu seçim\nBoşluk / kutucuk: toplu aç-kapat • Çift tık: ad / Hz / süre / çarpan',fg='#60758a',bg='#f4f8fb',justify='left',anchor='w').pack(fill='x',padx=10,pady=(0,8))
-    toolbar=tk.Frame(right,bg='#f4f8fb');toolbar.pack(fill='x',padx=12,pady=(8,4));bar=self._control_row(toolbar,fill='x');tk.Label(bar,text='X ekseni',fg='#526c82',bg='#f4f8fb').pack(side='left');self.xcombo=ttk.Combobox(bar,state='readonly',width=16,values=[]);self.xcombo.pack(side='left',padx=(5,8));self.xcombo.bind('<<ComboboxSelected>>',lambda e:self.redraw());tk.Label(bar,text='Eğri',fg='#526c82',bg='#f4f8fb').pack(side='left');self.limit=ttk.Combobox(bar,state='readonly',width=6,values=['12','30','100','Tümü']);self.limit.set('Tümü');self.limit.pack(side='left',padx=4);self.limit.bind('<<ComboboxSelected>>',lambda e:self.redraw());tk.Label(bar,text='Ondalık',fg='#526c82',bg='#f4f8fb').pack(side='left',padx=(5,2));self.decimal=ttk.Combobox(bar,state='readonly',width=3,values=('.',','));self.decimal.set('.');self.decimal.pack(side='left');self.decimal.bind('<<ComboboxSelected>>',lambda e:(self.redraw(preserve_view=True) if self.datasets else None));self._button(bar,'Tümünü göster',self.reset_zoom).pack(side='left',padx=(9,2));self._button(bar,'Seçili aralığı temizle',self.clear_span).pack(side='left',padx=2);self._button(bar,'Probe temizle',self.clear_probes).pack(side='left',padx=2)
+    toolbar=tk.Frame(right,bg='#f4f8fb');toolbar.pack(fill='x',padx=12,pady=(8,4));bar=self._control_row(toolbar,fill='x');tk.Label(bar,text='X ekseni',fg='#526c82',bg='#f4f8fb').pack(side='left');self.xcombo=AdaptiveCombobox(bar,state='readonly',width=16,values=[]);self.xcombo.pack(side='left',padx=(5,8));self.xcombo.bind('<<ComboboxSelected>>',lambda e:self.redraw());tk.Label(bar,text='Eğri',fg='#526c82',bg='#f4f8fb').pack(side='left');self.limit=AdaptiveCombobox(bar,state='readonly',width=6,values=['12','30','100','Tümü']);self.limit.set('Tümü');self.limit.pack(side='left',padx=4);self.limit.bind('<<ComboboxSelected>>',lambda e:self.redraw());tk.Label(bar,text='Ondalık',fg='#526c82',bg='#f4f8fb').pack(side='left',padx=(5,2));self.decimal=AdaptiveCombobox(bar,state='readonly',width=3,values=('.',','));self.decimal.set('.');self.decimal.pack(side='left');self.decimal.bind('<<ComboboxSelected>>',lambda e:(self.redraw(preserve_view=True) if self.datasets else None));self._button(bar,'Tümünü göster',self.reset_zoom).pack(side='left',padx=(9,2));self._button(bar,'Seçili aralığı temizle',self.clear_span).pack(side='left',padx=2);self._button(bar,'Probe temizle',self.clear_probes).pack(side='left',padx=2)
     exports=self._control_row(toolbar,fill='x',pady=(4,0))
     for label,command in [("Görünen grafiği CSV'ye aktar",self.export_graph_csv),("Seçili aralığı CSV'ye aktar",self.export_span_csv),("Kanal istatistiklerini CSV'ye aktar",self.export_stats_csv),("Görünen grafiği PNG olarak dışarı aktar",self.export_graph_png)]:
       self._button(exports,label,command).pack(side='left',padx=(0,6))
@@ -594,11 +594,11 @@ class TraceDock(tk.Tk):
     self.timeline_total=tk.StringVar(value='Toplam: 00:00:00.0000')
     tk.Label(row,textvariable=self.timeline_total,fg='#203449',bg='#f4f8fb').pack(side='right')
     tk.Label(row,text='Kanal eşleştirme',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=(12,5))
-    combo=ttk.Combobox(row,textvariable=self.timeline_match,state='readonly',width=25,values=['Seçili kanal sırasına göre','Kanal adına göre','Sütun sırasına göre','Ayrı çizgiler']);combo.pack(side='left');combo.bind('<<ComboboxSelected>>',lambda e:self._timeline_changed())
+    combo=AdaptiveCombobox(row,textvariable=self.timeline_match,state='readonly',width=25,values=['Seçili kanal sırasına göre','Kanal adına göre','Sütun sırasına göre','Ayrı çizgiler']);combo.pack(side='left');combo.bind('<<ComboboxSelected>>',lambda e:self._timeline_changed())
     self.timeline_content=tk.Frame(dock,bg='#f4f8fb');self.timeline_content.pack(fill='both',expand=True)
     row=self._control_row(self.timeline_content,fill='x',padx=10,pady=(0,3))
     tk.Label(row,text='Aktif satır',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=(0,6))
-    self.timeline_row_combo=ttk.Combobox(row,state='readonly',width=16);self.timeline_row_combo.pack(side='left',padx=(0,5));self.timeline_row_combo.bind('<<ComboboxSelected>>',self._timeline_select_row)
+    self.timeline_row_combo=AdaptiveCombobox(row,state='readonly',width=16);self.timeline_row_combo.pack(side='left',padx=(0,5));self.timeline_row_combo.bind('<<ComboboxSelected>>',self._timeline_select_row)
     self._button(row,'Yeni satır',self.timeline_new_row).pack(side='left',padx=(0,4));self._button(row,'Satırı kaldır',self.timeline_remove_row).pack(side='left',padx=(0,8))
     tk.Label(row,text='Aynı satır: uç uca • Farklı satırlar: üst üste • Sürükle: sırala / satır değiştir',fg='#60758a',bg='#f4f8fb').pack(side='left')
     row=self._control_row(self.timeline_content,fill='x',padx=10,pady=(0,3))
@@ -1299,7 +1299,7 @@ class TraceDock(tk.Tk):
       for i,key in enumerate(keys):
         entry=by_track[key];tree.insert('','end',iid=str(i),values=(entry['track_label'],entry['dataset'].get('units',{}).get(entry['name'],''),Y_AXIS_LABELS[self._axis_slot(entry)]))
       tree.selection_set(tuple(i for i in selected if tree.exists(i)))
-    fill();bar=self._control_row(win,fill='x',padx=14,pady=12);choice=ttk.Combobox(bar,state='readonly',values=list(Y_AXIS_LABELS.values()),width=12);choice.set('Sol 1');choice.pack(side='left',padx=(0,6))
+    fill();bar=self._control_row(win,fill='x',padx=14,pady=12);choice=AdaptiveCombobox(bar,state='readonly',values=list(Y_AXIS_LABELS.values()),width=12);choice.set('Sol 1');choice.pack(side='left',padx=(0,6))
     def apply():
       selected=[keys[int(i)] for i in tree.selection()]
       if not selected:return

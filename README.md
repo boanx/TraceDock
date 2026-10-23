@@ -163,3 +163,7 @@ Grafik, problar, istatistikler, CSV ve PNG etkin görünümü kullanır. Filtrel
 
 Filtre tasarımı: https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.butter.html
 İleri/geri uygulama: https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.sosfiltfilt.html
+
+## Açılır kutu ve araç satırı yerleşimi (v1.0.14)
+
+Açılır kutular aynı ölçülen yazı tipini kullanır; varsayılan seçim ve liste seçenekleri için genişlik hesaplanır. Monitör ölçeği değiştiğinde araç satırları doğal içerik yüksekliğini yeniden alır. Zaman çizelgesi ve grafik araç çubuklarında yazının kırpılmasına ve eski satır yüksekliğinden kalan boşluklara neden olan sabit gömülü çerçeve yüksekliği kaldırıldı. Sığmayan satırlarda yatay kaydırma korunur. Fiziksel monitörlerde arayüz testi çalıştırılmadı.
