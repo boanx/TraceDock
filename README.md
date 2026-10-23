@@ -179,3 +179,7 @@ Veri dosyaları başlığındaki “‹” düğmesi dosya ve kanal panelini dar
 Grafik kenar boşlukları sabit yüzde yerine çizilen eksen başlıkları ve sayıların gerçek piksel sınırlarına göre hesaplanır. Tek Y ekseniyle geniş pencerelerde sol boşluk küçülür; ek Y eksenleri için gereken alan korunur. Pencere boyutu ve eksen ölçeği değiştiğinde yerleşim yenilenir. Filtreli görünüm, Kesim (Hz) ve Uygula en üst araç satırındadır; satır sığmazsa yatay kaydırılabilir.
 
 Mevcut TraceDock logosunun ICO içindeki farklı çözünürlükleri pencere simgesine ve varsayılan alt pencere simgelerine atanır. Windows görev çubuğu için uygulamaya sabit bir kimlik verilir; başlık logosu DPI değerine uygun ICO boyutunu kullanır. EXE aynı ICO kaynağıyla paketlenir. Fiziksel monitörlerde arayüz işlev testi çalıştırılmadı.
+
+## Veri eklerken daraltılmış durumu koruma (v1.0.17)
+
+Daraltılmış zaman çizelgesine veri veya yeni satır eklendiğinde panel otomatik genişlemez; tek başlık satırı yüksekliği ve kilitli ayırıcı korunur. Veriler grafiğe eklenmeye devam eder. Panel yalnızca Genişlet düğmesiyle açılır. Veri ekleme yolundaki eski otomatik genişletme çağrısı kaldırıldı; gizli satıra kaydırma işlemi daraltılmış durumda atlanır. Arayüz işlev testi çalıştırılmadı.

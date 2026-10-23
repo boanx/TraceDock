@@ -665,6 +665,7 @@ class TraceDock(tk.Tk):
       self._timeline_row_number+=1;self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':f'Satır {self._timeline_row_number}'}]
     self.timeline_row=self.timeline_rows[0]['uid'];self.timeline_selected=None;self._timeline_changed()
  def _timeline_reveal_row(self):
+    if self._timeline_collapsed:return
     c=self.timeline_canvas;margin,header,row_height=self._timeline_geometry();index=next(i for i,r in enumerate(self.timeline_rows) if r['uid']==self.timeline_row);top=header+index*row_height;bottom=top+row_height;height=max(1,c.winfo_height());total=max(height,header+row_height*len(self.timeline_rows));view=c.canvasy(0)
     if top<view+header:c.yview_moveto(max(0,top-header)/total)
     elif bottom>view+height:c.yview_moveto(max(0,bottom-height)/total)
@@ -701,7 +702,6 @@ class TraceDock(tk.Tk):
     row=next((row for row in self.timeline_rows if row['uid']==(row_uid or self.timeline_row)),None)
     if row is None:return
     clip={'uid':uuid.uuid4().hex,'dataset_uid':dataset_uid,'row_uid':row['uid'],'channels':list(dict.fromkeys(names))};self.timeline.append(clip);self.timeline_selected=clip['uid'];self.timeline_row=row['uid']
-    if self._timeline_collapsed:self._toggle_timeline_panel()
     self._timeline_changed();self.after_idle(self._timeline_reveal_row);self.status.set(f"{d['name']} • {len(clip['channels'])} kanal → {row['name']}")
  def timeline_all(self):
     if not self.datasets:return
