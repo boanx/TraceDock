@@ -151,12 +151,15 @@ Fontların asıl punto değerleri saklanır; her monitörde DPI değerinden yeni
 Desteklenen ikili biçim: Exlab TDMBIN sürüm 8, double (float64), 182 baytlık kanal kayıtları; düzen 0 ve 1. Dosya boyutu, bölüm sınırları ve blok/paket sayıları kontrol edilir. Kanal metadata alanlarındaki ek katsayılar otomatik uygulanmaz. Kaynak dosya değiştirilmez.
 
 
-## Ham ve filtreli görünüm (v1.0.12)
+## Ayarlanabilir filtre frekansı (v1.0.13)
 
-Aktarma düğmelerinin yanındaki “Filtreli görünüm (3 nokta)” kutusunu açıp kapatabilirsiniz. Varsayılan ham görünümdür. Kaynak dosya ve ham örnekler değiştirilmez. Filtre ilk kullanımda arka planda hazırlanır; ilerleme ve iptal desteklenir.
+Aktarma düğmelerinin altındaki “Kesim (Hz)” alanına düşük geçiren filtrenin kesim frekansını girip “Uygula” düğmesine basın veya Enter kullanın. Örneğin 10, 20 veya 12,5 girilebilir; nokta ve virgül kabul edilir. “Uygula” filtreli görünümü açar. “Filtreli görünüm” kutusunu kapatarak ham veriye dönebilirsiniz. Varsayılan değer 10 Hz, başlangıç görünümü hamdır. Girilen değer, yüklenen tüm kanallarda örnekleme hızının yarısından küçük ve sıfırdan büyük olmalıdır. Uygun değilse engel olan kanal ve sınır gösterilir; değer otomatik kırpılmaz.
 
-Filtre, ortadaki örneğe yüzde 50 ve iki komşuya yüzde 25 ağırlık verir: y[n] = (x[n−1] + 2x[n] + x[n+1])/4. Merkezli üç örnekli düşük geçiren yumuşatmadır. 100 Hz veride örnekten örneğe değişen 50 Hz bileşenini bastırır; diğer yüksek frekanslı gerçek hareketleri de azaltır. Farklı örnekleme hızlarında frekans etkisi değişir. İlk ve son örnek korunur; eksik ölçüm komşuluklarında merkezdeki özgün değer tutulur. Ayrı kaynak/paket sınırları üzerinden filtre uygulanmaz. Örnek sayısı, frekans ve zaman konumları değişmez.
+Her kanal kendi örnekleme hızıyla filtrelenir; kaynakların hızları eşitlenmez. Dördüncü dereceden Butterworth düşük geçiren filtre ileri ve geri uygulanır. Birleşik yanıtın −3 dB noktası girilen Hz değeridir (iki geçiş için tasarım frekansı telafi edilir). Örnek sayısı ve zaman konumları korunur; zaman gecikmesi eklenmez. Kesim frekansı üzerindeki gerçek sinyal bileşenleri de zayıflar. Bu özellik bir 50 Hz çentik filtresi değildir.
 
-Filtre açıkken grafik, problar, kanal istatistikleri, CSV ve PNG seçili filtreli görünümü kullanır. Filtreli kanal başlıklarında “[filtreli: 3 nokta]” yer alır; PNG üzerinde filtreli görünüm etiketi bulunur. Dosya adlarına varsayılan olarak “-filtreli” eklenir. Ham veriyi dışa aktarmak için kutuyu kapatın. Çarpanlar seçili görünümün üzerine uygulanır. Yakınlaştırma özeti filtreli serinin kendi önbelleğini kullanır.
+Kaynak dosya ve ham örnekler değiştirilmez. Filtre arka planda ilerleme ve iptal desteğiyle hazırlanır. Hazırlık sırasında önceki görünüm korunur; yeni sonuç tamamlanınca birlikte devreye girer. İptal veya hatada önceki sonuç geçerlidir. Ayrı kaynaklar ve eksik ölçüm aralıkları üzerinden filtre uygulanmaz. Eksik değerler korunur; üç örnekten kısa sonlu parçalar ham kalır. Kısa parçalar ile kayıt/boşluk kenarlarında filtre sınır etkileri olabilir.
 
-Yeni kaynak yüklendiğinde filtre önbelleği henüz hazır değilse görünüm ham moda döner; filtreyi tekrar açarak yeni kaynaklar için hazırlayın. Kaynakların frekansları eşitlenmez. Görünen dalgalanmadan tek başına mekanik rezonans veya şebeke girişimi sonucu çıkarılamaz.
+Grafik, problar, istatistikler, CSV ve PNG etkin görünümü kullanır. Filtreli kanal başlıklarında “[filtreli: 10 Hz]” gibi gerçek kesim frekansı, PNG üzerinde de filtreli görünüm etiketi bulunur. Dosya adlarına varsayılan olarak “-filtreli” eklenir. Ham dışa aktarma için kutuyu kapatın. Çarpanlar filtreli değerlerin üzerine uygulanır. Hz veya süre değiştiğinde eski filtre önbelleği geçersiz olur; ham görünüme dönülür ve filtre yeniden uygulanmalıdır. Yeni kaynak eklendiğinde de filtreyi yeniden uygulayın.
+
+Filtre tasarımı: https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.butter.html
+İleri/geri uygulama: https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.sosfiltfilt.html

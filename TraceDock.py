@@ -16,6 +16,7 @@ from tkinter import ttk, filedialog
 from tracedock_theme import GlassButton, GlassMessages as messagebox, GlassInputs as simpledialog, apply_native_glass, rounded_rect
 from tracedock_layout import AdaptiveTreeview, AutoScrollbar, ResponsivePanedWindow, HorizontalScrollFrame, ResponsiveButtonBar, size_dialog
 import numpy as np
+from scipy.signal import butter, sosfiltfilt
 from nptdms import TdmsFile
 import matplotlib
 matplotlib.use('TkAgg')
@@ -275,19 +276,32 @@ def build_channel_cache(values,cancel=None):
             size*=4;levels.append((size,indices))
     return (first,last,minimum,maximum),levels
 
-def binomial_smooth(values,cancel=None):
-    """Centered three-sample FIR; preserve endpoints and missing-data gaps."""
-    count=len(values);result=np.empty(count,dtype=float)
-    if count<3:
-        result[:]=values
-    else:
-        result[0]=values[0];result[-1]=values[-1]
-        for start in range(1,count-1,65536):
-            check_cancel(cancel);stop=min(count-1,start+65536);left=values[start-1:stop-1];center=values[start:stop];right=values[start+1:stop+1]
-            valid=np.isfinite(left)&np.isfinite(center)&np.isfinite(right)
-            with np.errstate(invalid='ignore',over='ignore'):filtered=.25*left+.5*center+.25*right
-            result[start:stop]=np.where(valid,filtered,center)
-    result.flags.writeable=False;return result
+def lowpass_filter(values,rate,cutoff,cancel=None):
+    """Zero-phase lowpass, with the combined -3 dB cutoff in Hz.
+
+    Finite runs are independent: gaps and source boundaries are never bridged.
+    """
+    if not math.isfinite(rate) or not 0<cutoff<rate/2:
+        raise ValueError('Kesim frekansı pozitif ve örnekleme hızının yarısından küçük olmalı.')
+    # Compensate for squared magnitude in the forward/backward fourth-order filter.
+    critical=rate/np.pi*np.arctan(np.tan(np.pi*cutoff/rate)/(np.sqrt(2)-1)**(1/8))
+    sos=butter(4,critical,fs=rate,output='sos')
+    result=np.array(values,dtype=float,copy=True)
+    finite=np.isfinite(result)
+    boundaries=np.flatnonzero(np.diff(finite,prepend=False,append=False))
+    for start,stop in boundaries.reshape(-1,2):
+        check_cancel(cancel)
+        count=stop-start
+        if count<3:continue
+        filtered=sosfiltfilt(sos,result[start:stop],padlen=min(15,count-2))
+        check_cancel(cancel)
+        if not np.all(np.isfinite(filtered)):
+            raise ValueError('Bu kesim frekansında sayısal olarak kararlı filtre üretilemedi; daha yüksek bir değer girin.')
+        result[start:stop]=filtered
+    check_cancel(cancel)
+    result.flags.writeable=False
+    return result
+
 
 def prepare_dataset(d,progress=None,cancel=None):
     d.setdefault('uid',uuid.uuid4().hex)
@@ -440,7 +454,7 @@ class TraceDock(tk.Tk):
     if icon_path.exists():
       try:self.iconbitmap(str(icon_path))
       except Exception:pass
-    self.filtered_view=tk.BooleanVar(value=False)
+    self.filtered_view=tk.BooleanVar(value=False);self.filter_cutoff=tk.StringVar(value='10');self._active_cutoff=10.0
     self._style(); self._build(); self.load_default_config(); self.redraw_all()
     watch_window_dpi(self)
     self.bind('<<DisplayScaleChanged>>',self._display_scale_changed,add='+')
@@ -482,7 +496,12 @@ class TraceDock(tk.Tk):
     exports=self._control_row(toolbar,fill='x',pady=(4,0))
     for label,command in [("Görünen grafiği CSV'ye aktar",self.export_graph_csv),("Seçili aralığı CSV'ye aktar",self.export_span_csv),("Kanal istatistiklerini CSV'ye aktar",self.export_stats_csv),("Görünen grafiği PNG olarak dışarı aktar",self.export_graph_png)]:
       self._button(exports,label,command).pack(side='left',padx=(0,6))
-    self._filter_toggle=ttk.Checkbutton(exports,text='Filtreli görünüm (3 nokta)',variable=self.filtered_view,command=self._toggle_filtered_view);self._filter_toggle.pack(side='left',padx=8)
+    filter_controls=self._control_row(toolbar,fill='x',pady=(4,0))
+    self._filter_toggle=ttk.Checkbutton(filter_controls,text='Filtreli görünüm',variable=self.filtered_view,command=self._toggle_filtered_view);self._filter_toggle.pack(side='left',padx=(0,8))
+    ttk.Label(filter_controls,text='Kesim (Hz)').pack(side='left',padx=(4,3))
+    self._filter_entry=ttk.Entry(filter_controls,textvariable=self.filter_cutoff,width=8);self._filter_entry.pack(side='left',padx=3);self._filter_entry.bind('<Return>',lambda e:self._apply_filter_frequency())
+    self._filter_apply=self._button(filter_controls,'Uygula',self._apply_filter_frequency);self._filter_apply.pack(side='left',padx=3)
+
     self.coords=tk.StringVar(value='X = —    Y = —');bar3=self._control_row(toolbar,fill='x',pady=(3,0));self._button(bar3,'Y eksenleri',self._show_y_axes).pack(side='right',padx=(6,0));ttk.Checkbutton(bar3,text='Lejantı göster',variable=self.legend_visible,command=self._toggle_legend).pack(side='right',padx=(8,0));tk.Label(bar3,text='Sol tık: prob ekle/sil • Sağ tık: prob etiketi • Sol sürükle: aralık • Sağ sürükle: kaydır • Tekerlek / orta tuş: zoom',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=2)
     self.graph_panels=ResponsivePanedWindow(right,fraction=.73,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.graph_panels.pack(fill='both',expand=True,padx=10,pady=(0,8));plotbox=tk.Frame(self.graph_panels,bg='#f4f8fb');self.graph_panels.add(plotbox,minsize=120,stretch='always');readout=tk.Label(plotbox,textvariable=self.coords,fg='#405d75',bg='#f4f8fb',font=ui_font(self,8),anchor='w',justify='left',padx=6,pady=2);readout.pack(side='bottom',fill='x');readout.bind('<Configure>',lambda e:readout.configure(wraplength=max(150,e.width-12))); self.fig=Figure(figsize=(9,5),dpi=100,facecolor='#f4f8fb');self.ax=self.fig.add_subplot(111);self.ax.set_facecolor('#ffffff');self.fig.subplots_adjust(left=.09,right=.985,top=.97,bottom=.12);self.canvas=FigureCanvasTkAgg(self.fig,master=plotbox);self.canvas.get_tk_widget().pack(fill='both',expand=True);self.canvas.mpl_connect('motion_notify_event',self.on_motion);self.canvas.mpl_connect('button_press_event',self.on_press);self.canvas.mpl_connect('button_release_event',self.on_release);self.canvas.mpl_connect('scroll_event',self.on_scroll);self.canvas.mpl_connect('resize_event',self._on_graph_resize)
     measurements=tk.Frame(self.graph_panels,bg='#f4f8fb',height=170);measurements.pack_propagate(False);self.graph_panels.add(measurements,minsize=100,height=170,stretch='always');self.tables=ttk.Notebook(measurements);self.tables.pack(fill='both',expand=True,padx=4,pady=4);stats_tab=tk.Frame(self.tables,bg='#f4f8fb');probe_tab=tk.Frame(self.tables,bg='#f4f8fb');self.tables.add(stats_tab,text='Kanal istatistikleri');self.tables.add(probe_tab,text='Problar');cols=('channel','start','end','min','max');self.table=AdaptiveTreeview(stats_tab,columns=cols,show='headings',height=4);labels=['Kanal','Başlangıç','Bitiş','Minimum','Maksimum'];widths=[280,150,150,150,150]
@@ -795,7 +814,7 @@ class TraceDock(tk.Tk):
       except queue.Empty:break
       if kind=='progress':self._job_progress['value']=payload[0]*100;self.status.set(job['title']+' • '+payload[1]);continue
       self._job=None;self._job_bar.pack_forget()
-      self._filter_toggle.configure(state='normal')
+      self._filter_toggle.configure(state='normal');self._filter_entry.configure(state='normal');self._filter_apply.configure(state='normal')
       if kind=='done':job['success'](payload)
       elif kind=='cancelled':self.status.set('İşlem iptal edildi')
       else:
@@ -848,32 +867,58 @@ class TraceDock(tk.Tk):
         if (factor==1 and current is values) or (isinstance(current,ScaledValues) and current.base is values and current.factor==factor):continue
         d['channels'][name]=values if factor==1 else ScaledValues(values,factor)
 
- def _filter_cache_ready(self):
-    return all(d.get('_smoothed',{}).get(name,{}).get('source') is raw for d in self.datasets for name,raw in d['_base_channels'].items())
+ def _filter_cache_ready(self,cutoff=None):
+    cutoff=self._active_cutoff if cutoff is None else cutoff
+    for d in self.datasets:
+      for name,raw in d['_base_channels'].items():
+        cached=d.get('_smoothed',{}).get(name,{})
+        if cached.get('source') is not raw or cached.get('rate')!=d['channel_rates'][name] or cached.get('cutoff')!=cutoff:return False
+    return True
+ def _filter_status(self):
+    return f'Filtreli görünüm • düşük geçiren {self._active_cutoff:g} Hz • prob, istatistik ve CSV filtreli; ham kaynak korunur'
  def _toggle_filtered_view(self):
     if not self.filtered_view.get():
       self.redraw_all(preserve_view=True);self.status.set('Ham görünüm • grafik, prob, istatistik ve CSV ham değerleri kullanır');return
     self.filtered_view.set(False)
+    self._apply_filter_frequency()
+ def _apply_filter_frequency(self):
     if self._job is not None:return
     if not self.datasets:self.status.set('Filtre için önce bir veri dosyası ekleyin');return
-    if self._filter_cache_ready():
-      self.filtered_view.set(True);self.redraw_all(preserve_view=True);self.status.set('Filtreli görünüm • 3 nokta yumuşatma • prob, istatistik ve CSV filtreli; ham kaynak korunur');return
-    pending=[raw for d in self.datasets for name,raw in d['_base_channels'].items() if d.get('_smoothed',{}).get(name,{}).get('source') is not raw]
+    try:
+      cutoff=float(self.filter_cutoff.get().strip().replace(',','.'))
+      if not math.isfinite(cutoff) or cutoff<=0:raise ValueError()
+    except ValueError:
+      messagebox.showerror('Kesim frekansı','Hz cinsinden sıfırdan büyük bir sayı girin (ör. 10 veya 12,5).',parent=self);return
+    channels=[(d,name,raw,float(d['channel_rates'][name])) for d in self.datasets for name,raw in d['_base_channels'].items()]
+    invalid=[(d,name,rate) for d,name,raw,rate in channels if not math.isfinite(rate) or cutoff>=rate/2]
+    if invalid:
+      d,name,rate=min(invalid,key=lambda item:item[2])
+      messagebox.showerror('Kesim frekansı',f"{d['name']} / {name}: örnekleme hızı {rate:g} Hz.\nKesim frekansı {rate/2:g} Hz değerinden küçük olmalı. Kaynakların hızları değiştirilmez.",parent=self);return
+    if self._filter_cache_ready(cutoff):
+      self._active_cutoff=cutoff;self.filtered_view.set(True);self.redraw_all(preserve_view=True);self.status.set(self._filter_status());return
+    pending=[]
+    for d,name,raw,rate in channels:
+      cached=d.get('_smoothed',{}).get(name,{})
+      if cached.get('source') is not raw or cached.get('rate')!=rate or cached.get('cutoff')!=cutoff:pending.append((raw,rate))
     def work(progress,cancel):
       prepared={}
-      for i,raw in enumerate(pending):
-        check_cancel(cancel)
-        if id(raw) not in prepared:
-          values=binomial_smooth(raw,cancel);stats,levels=build_channel_cache(values,cancel);prepared[id(raw)]={'source':raw,'values':values,'stats':stats,'levels':levels}
+      for i,(raw,rate) in enumerate(pending):
+        check_cancel(cancel);key=(id(raw),rate)
+        if key not in prepared:
+          values=lowpass_filter(raw,rate,cutoff,cancel);stats,levels=build_channel_cache(values,cancel)
+          prepared[key]={'source':raw,'rate':rate,'cutoff':cutoff,'values':values,'stats':stats,'levels':levels}
         progress((i+1)/len(pending),f'{i+1}/{len(pending)} kanal hazırlandı')
       return prepared
     def complete(prepared):
       for d in self.datasets:
         for name,raw in d['_base_channels'].items():
-          if id(raw) in prepared:d.setdefault('_smoothed',{})[name]=prepared[id(raw)]
-      if not self._filter_cache_ready():self.status.set('Veri listesi değişti; filtreyi yeniden açın.');return
-      self.filtered_view.set(True);self.redraw_all(preserve_view=True);self.status.set('Filtreli görünüm • 3 nokta yumuşatma • prob, istatistik ve CSV filtreli; ham kaynak korunur')
-    self._filter_toggle.configure(state='disabled');self._start_job('Filtre hazırlanıyor',work,complete)
+          key=(id(raw),float(d['channel_rates'][name]))
+          if key in prepared:d.setdefault('_smoothed',{})[name]=prepared[key]
+      if not self._filter_cache_ready(cutoff):
+        self.filtered_view.set(False);self.redraw_all(preserve_view=True);self.status.set('Veri listesi veya Hz değişti; filtreyi yeniden uygulayın.');return
+      self._active_cutoff=cutoff;self.filtered_view.set(True);self.redraw_all(preserve_view=True);self.status.set(self._filter_status())
+    self._filter_toggle.configure(state='disabled');self._filter_entry.configure(state='disabled');self._filter_apply.configure(state='disabled')
+    self._start_job(f'Filtre hazırlanıyor ({cutoff:g} Hz)',work,complete)
 
  def _tdms_settings(self,channels):
     win=tk.Toplevel(self);win.title('TDMS kanal hızları ve çarpanları');size_dialog(win,self,860,600);win.transient(self);win.grab_set();win.configure(bg='#f4f8fb')
@@ -1199,7 +1244,7 @@ class TraceDock(tk.Tk):
         if track not in tracks and len(tracks)>=limit:continue
         base=d['_base_channels'][name];levels=d['_envelopes'][name];stats=d['_base_stats'][name];suffix=''
         if self.filtered_view.get():
-          cached=d['_smoothed'][name];base=cached['values'];levels=cached['levels'];stats=cached['stats'];factor=float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1));y=base if factor==1 else ScaledValues(base,factor);suffix=' [filtreli: 3 nokta]'
+          cached=d['_smoothed'][name];base=cached['values'];levels=cached['levels'];stats=cached['stats'];factor=float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1));y=base if factor==1 else ScaledValues(base,factor);suffix=f' [filtreli: {self._active_cutoff:g} Hz]'
         tracks.add(track);clock=SampleTimeAxis(len(y),d['channel_rates'][name],origin=start);channel_label=f'Seçili kanal {selected_column} / {name}' if policy=='Seçili kanal sırasına göre' else f'Sütun {column+1} / {name}' if policy=='Sütun sırasına göre' else name if policy=='Kanal adına göre' else f"{d['name']} / {name} [Paket {ci+1}]"
         series.append({'key':key,'name':name,'dataset':d,'label':f"{row['name']} / {d['name']} / {name} [Paket {ci+1}]"+suffix,'x':clock,'time':clock,'y':y,'base_values':base,'envelopes':levels,'stats':stats,'track':track,'track_label':f"{row['name']} / {channel_label}"+suffix,'row_uid':row_uid,'clip_index':ci,'clip_start':start,'clip_end':end})
     return series
@@ -1307,7 +1352,7 @@ class TraceDock(tk.Tk):
     self._background=None;self.ax.clear();self._guide_artists=[];self._line_data={};self._series_map={};self._legend_artist=None;self._legend_targets=[];self.ax.set_facecolor('#ffffff');self.ax.set_axisbelow(True);self.ax.tick_params(colors='#40596f')
     for spine in self.ax.spines.values():spine.set_color('#cbdbe7');spine.set_visible(True)
     self.ax.tick_params(axis='y',left=True,labelleft=True);series=self._plot_series();self._configure_y_axes(series);elapsed=self.xcombo.get()=='Geçen süre';budget=max(256,min(4000,60000//max(1,len(series))))
-    if self.filtered_view.get():self.ax.text(.99,.985,'Filtreli görünüm · 3 nokta',transform=self.ax.transAxes,ha='right',va='top',fontsize=8,color='#7261c4',bbox=dict(facecolor='#ffffff',edgecolor='#cbdbe7',alpha=.9),zorder=25)
+    if self.filtered_view.get():self.ax.text(.99,.985,f'Filtreli görünüm · {self._active_cutoff:g} Hz',transform=self.ax.transAxes,ha='right',va='top',fontsize=8,color='#7261c4',bbox=dict(facecolor='#ffffff',edgecolor='#cbdbe7',alpha=.9),zorder=25)
     if not series:
       self.ax.set_xlim(0,1);self.ax.set_ylim(0,1);self.ax.text(.5,.5,'Grafik için Dosya/Kanal sütununa sağ tıklayıp zaman çizelgesine ekleyin',color='#40596f',ha='center',va='center',transform=self.ax.transAxes);self.span_artist=None;self.cursor_x=None;self.cursor_y=None;self._reset_axis_slots.clear();self._draw_guides();self.canvas.draw_idle();self._update_tables();return
     track_colors={};previous_tracks={};legend_entries=[]
