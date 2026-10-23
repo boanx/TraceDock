@@ -6,6 +6,7 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from tracedock_workers import resource_plan, inspect_text, parse_file_block, parse_records, format_export_block, number
 from tracedock_tdmbin import read_tdmbin
+from tracedock_plot import CachedLegend
 from numpy.lib.mixins import NDArrayOperatorsMixin
 from datetime import datetime
 from pathlib import Path
@@ -732,7 +733,8 @@ class TraceDock(tk.Tk):
     self._timeline_fit=False;self._timeline_scale=max(1e-9,min(1e8,self._timeline_scale*factor));self._render_timeline()
  def _timeline_geometry(self):
     factor=display_fonts(self).dpi/96
-    return max(120*factor,ui_font(self,8).measure('Seçmek için tıkla')+24*factor),28*factor,76*factor
+    row_height=max(42*factor,ui_font(self,9,'bold').metrics('linespace')+ui_font(self,8).metrics('linespace')+12*factor)
+    return max(120*factor,ui_font(self,8).measure('Seçmek için tıkla')+24*factor),28*factor,row_height
  def _timeline_title(self,text,width):
     font=ui_font(self,9,'bold')
     if font.measure(text)<=width:return text
@@ -743,7 +745,8 @@ class TraceDock(tk.Tk):
       else:hi=mid-1
     return text[:lo]+'…' if font.measure('…')<=width else ''
  def _render_timeline(self):
-    self._timeline_sync_rows();c=self.timeline_canvas;c.delete('all');layout=self._timeline_layout();total=max((e for cl,d,s,e in layout),default=0.);factor=display_fonts(self).dpi/96;width=max(160,c.winfo_width()/factor);height=max(75,c.winfo_height()/factor);margin=self._timeline_geometry()[0]/factor;row_height=76
+    self._timeline_sync_rows();c=self.timeline_canvas;c.delete('all');layout=self._timeline_layout();total=max((e for cl,d,s,e in layout),default=0.);factor=display_fonts(self).dpi/96;width=max(160,c.winfo_width()/factor);height=max(75,c.winfo_height()/factor);margin=self._timeline_geometry()[0]/factor;row_height=self._timeline_geometry()[2]/factor
+    title_y=7+ui_font(self,9,'bold').metrics('linespace')/factor/2;detail_y=row_height-6-ui_font(self,8).metrics('linespace')/factor/2
     self.timeline_total.set(f'{len(self.timeline_rows)} satır • {len(layout)} paket • Toplam: {elapsed_text(total)}')
     if self._timeline_fit:self._timeline_scale=(width-margin-15)/max(total,1e-9)
     scale=self._timeline_scale;extent=max(width,total*scale+margin+15);content_height=max(height,28+row_height*len(self.timeline_rows));c.configure(scrollregion=(0,0,extent*factor,content_height*factor));self._timeline_rects=[]
@@ -752,22 +755,22 @@ class TraceDock(tk.Tk):
       y=28+row_indices[row['uid']]*row_height
       if y+row_height<top or y>bottom:continue
       c.create_rectangle(left,y,right,y+row_height,fill='#e8f4f5' if row['uid']==self.timeline_row else '#ffffff',outline='#d9e4ed')
-      if not any(cl.get('row_uid',self.timeline_rows[0]['uid'])==row['uid'] for cl in self.timeline):c.create_text(max(margin+12,left+margin+12),y+35,text='Boş satır • Sağ tıkla veri ekleyin veya bir paketi buraya sürükleyin',fill='#708798',anchor='w',font=ui_font(self,9))
+      if not any(cl.get('row_uid',self.timeline_rows[0]['uid'])==row['uid'] for cl in self.timeline):c.create_text(max(margin+12,left+margin+12),y+row_height/2,text='Boş satır • Sağ tıkla veri ekleyin veya bir paketi buraya sürükleyin',fill='#708798',anchor='w',font=ui_font(self,9))
     for i,(clip,d,start,end) in enumerate(layout):
-      row_uid=clip.get('row_uid',self.timeline_rows[0]['uid']);y=28+row_indices[row_uid]*row_height;x1=margin+start*scale;x2=margin+end*scale;y1=y+5;y2=y+row_height-5;self._timeline_rects.append((clip['uid'],row_uid,x1*factor,x2*factor,y1*factor,y2*factor))
+      row_uid=clip.get('row_uid',self.timeline_rows[0]['uid']);y=28+row_indices[row_uid]*row_height;x1=margin+start*scale;x2=margin+end*scale;y1=y+3;y2=y+row_height-3;self._timeline_rects.append((clip['uid'],row_uid,x1*factor,x2*factor,y1*factor,y2*factor))
       if x2<left+margin or x1>right or y2<top+28 or y1>bottom:continue
       color=PALETTE[row_indices[row_uid]%len(PALETTE)];selected=clip['uid']==self.timeline_selected
-      rounded_rect(c,x1,y1,x2,y2,r=11,fill='#d7efee' if selected else '#eaf2f8',outline='#007f85' if selected else '#cbdbe7',width=2 if selected else 1)
+      rounded_rect(c,x1,y1,x2,y2,r=6,fill='#d7efee' if selected else '#eaf2f8',outline='#007f85' if selected else '#cbdbe7',width=2 if selected else 1)
       if x2-x1>30:
-        names=self._clip_channels(clip,d);title=d['name']+((' / '+names[0]) if len(names)==1 else f' / {len(names)} kanal');title=self._timeline_title(title,(x2-x1-12)*factor);c.create_text(x1+6,y+22,text=title,fill=color,anchor='w',font=ui_font(self,9,'bold'))
-        if x2-x1>135:c.create_text(x1+6,y+45,text=f'{elapsed_text(start)} → {elapsed_text(end)}',fill='#405d75',anchor='w',font=ui_font(self,8))
+        names=self._clip_channels(clip,d);title=d['name']+((' / '+names[0]) if len(names)==1 else f' / {len(names)} kanal');title=self._timeline_title(title,(x2-x1-12)*factor);c.create_text(x1+6,y+title_y,text=title,fill=color,anchor='w',font=ui_font(self,9,'bold'))
+        if x2-x1>135:c.create_text(x1+6,y+detail_y,text=f'{elapsed_text(start)} → {elapsed_text(end)}',fill='#405d75',anchor='w',font=ui_font(self,8))
     # Fixed row labels and ruler stay visible while either scrollbar moves.
     c.create_rectangle(left,top,left+margin-6,bottom,fill='#f4f8fb',outline='')
     for row in self.timeline_rows:
       index=row_indices[row['uid']];y=28+index*row_height
       if y+row_height<top+28 or y>bottom:continue
-      rounded_rect(c,left+3,y+3,left+margin-10,y+row_height-3,r=11,fill='#d7efee' if row['uid']==self.timeline_row else '#eaf2f8',outline=PALETTE[index%len(PALETTE)])
-      c.create_text(left+12,y+25,text=row['name'],fill='#203449',anchor='w',font=ui_font(self,9,'bold'));c.create_text(left+12,y+47,text='Aktif satır' if row['uid']==self.timeline_row else 'Seçmek için tıkla',fill='#60758a',anchor='w',font=ui_font(self,8))
+      rounded_rect(c,left+3,y+3,left+margin-10,y+row_height-3,r=6,fill='#d7efee' if row['uid']==self.timeline_row else '#eaf2f8',outline=PALETTE[index%len(PALETTE)])
+      c.create_text(left+12,y+title_y,text=row['name'],fill='#203449',anchor='w',font=ui_font(self,9,'bold'));c.create_text(left+12,y+detail_y,text='Aktif satır' if row['uid']==self.timeline_row else 'Seçmek için tıkla',fill='#60758a',anchor='w',font=ui_font(self,8))
     c.create_rectangle(left,top,right,top+27,fill='#f4f8fb',outline='');c.create_text(left+12,top+13,text='SATIRLAR',fill='#60758a',anchor='w',font=ui_font(self,8,'bold'))
     if total>0:
       step=max(total/1000000,100/max(scale,1e-12));power=10**math.floor(math.log10(step));step=next(v*power for v in (1,2,5,10) if v*power>=step);first=max(0,math.ceil(left/scale/step))
@@ -1442,7 +1445,7 @@ class TraceDock(tk.Tk):
         if probe['label']:axis.annotate(f"P{probe_no}  X: {elapsed_text(x[index])}\nY: {self._number(y[index])}",(x[index],y[index]),xytext=(8,10),textcoords='offset points',color='#203449',fontsize=8,fontweight='bold',bbox=dict(boxstyle='round,pad=.3',facecolor='#eef5fa',edgecolor=color,alpha=.96),zorder=10)
     self.ax.set_xlabel('Geçen süre (HH:MM:SS.SSSS)' if elapsed else self.xcombo.get(),color='#526c82');self.ax.xaxis.set_major_formatter(FuncFormatter(lambda value,pos:elapsed_text(value) if elapsed else self._number(value)))
     self.span_artist=self.ax.axvspan(*self.span,color='#007f85',alpha=.16,zorder=0) if self.span else None;top_axis=list(self._y_axes.values())[-1];self._cursor_axis=top_axis
-    legend=top_axis.legend([item[0] for item in legend_entries],[item[1] for item in legend_entries],loc='upper left',facecolor='#f4f8fb',edgecolor='#cbdbe7',labelcolor='#203449',fontsize=8,ncol=2);self._legend_artist=legend;legend.set_visible(self.legend_visible.get());self._legend_targets=[(artist,entry[2]) for artist,entry in zip(legend.get_texts(),legend_entries)]+[(artist,entry[2]) for artist,entry in zip(legend.legend_handles,legend_entries)]
+    legend=CachedLegend(top_axis,[item[0] for item in legend_entries],[item[1] for item in legend_entries],loc='upper left',facecolor='#f4f8fb',edgecolor='#cbdbe7',labelcolor='#203449',fontsize=8,ncol=2);top_axis.add_artist(legend);self._legend_artist=legend;legend.set_visible(self.legend_visible.get());self._legend_targets=[(artist,entry[2]) for artist,entry in zip(legend.get_texts(),legend_entries)]+[(artist,entry[2]) for artist,entry in zip(legend.legend_handles,legend_entries)]
     self.cursor_x=top_axis.axvline(0,color='#608ca1',lw=.8,ls='--',visible=False,animated=True);self.cursor_y=top_axis.axhline(0,color='#608ca1',lw=.8,ls='--',visible=False,animated=True)
     if self._timeline_active() and not view:self.ax.set_xlim(0,max(self._timeline_duration(),1e-9))
     if view:
@@ -1458,14 +1461,14 @@ class TraceDock(tk.Tk):
     self._background=None
     if self._lod_after is None:self._lod_after=self.after(60,self._refresh_detail)
  def _refresh_detail(self):
-    self._lod_after=None;bounds=self.ax.get_xlim();budget=max(256,min(4000,60000//max(1,len(self._line_data))))
+    self._lod_after=None;bounds=self.ax.get_xlim();moving=self.drag_mode in ('pan','axis_zoom');budget=max(256,min(800 if moving else 4000,(20000 if moving else 60000)//max(1,len(self._line_data))))
     for line,(key,x,y,previous) in list(self._line_data.items()):
       entry=self._series_map[key];indices=self._display_indices(entry,bounds,budget);valid=np.isfinite(x[indices])&np.isfinite(y[indices]);indices=indices[valid]
       line.set_data(x[indices],y[indices]);self._line_data[line]=(key,x,y,indices)
     self._background=None;self.canvas.draw_idle()
  def _on_canvas_draw(self,event):
     if event.canvas is not self.canvas:return
-    if self._layout_y_axes(event.renderer):
+    if self.drag_mode not in ('pan','axis_zoom') and self._layout_y_axes(event.renderer):
       self._background=None;self.after_idle(self.canvas.draw_idle);return
     self._background=self.canvas.copy_from_bbox(self.ax.bbox)
     self._blit_cursor()
@@ -1481,7 +1484,7 @@ class TraceDock(tk.Tk):
       if getattr(self,'cursor_x',None) is not None:self.cursor_x.set_visible(False);self.cursor_y.set_visible(False);self._blit_cursor()
       return
     now=time.perf_counter()
-    if now-self._motion_clock<1/35:return
+    if now-self._motion_clock<(1/25 if self.drag_mode in ('pan','axis_zoom') else 1/35):return
     self._motion_clock=now;xvalue,yvalue=self._graph_point(e);self.mouse_data=(xvalue,yvalue);values='  '.join(Y_AXIS_LABELS[slot]+' = '+self._number(self._graph_point(e,axis)[1]) for slot,axis in self._y_axes.items() if slot in self._used_axis_slots);self.coords.set('X = '+elapsed_text(xvalue)+'    '+values)
     if self.drag_mode in ('pan','axis_zoom') and self.drag_start:
       sx,sy,xlim,ylims=self.drag_start;dx=e.x-sx;dy=e.y-sy;bbox=self.ax.bbox
@@ -1526,6 +1529,7 @@ class TraceDock(tk.Tk):
       mode='span' if e.button==1 or (e.key and 'shift' in str(e.key).lower()) else 'pan';self._graph_button=e.button;self.drag_mode=mode;self.drag_start=(e.x,e.y,self.ax.get_xlim(),ylims);self.click_start=(e.x,e.y,self._span_generation,mode,x,y)
     elif e.button==2:self._graph_button=2;self.drag_mode='axis_zoom';self.drag_start=(e.x,e.y,self.ax.get_xlim(),ylims)
  def on_release(self,e):
+    moving=self.drag_mode in ('pan','axis_zoom')
     if e.button in (1,3) and self.click_start and self._graph_button==e.button:
       start=self.click_start;self.click_start=None;self.drag_mode=None;self.drag_start=None;self._graph_button=None;dx=abs(e.x-start[0]);dy=abs(e.y-start[1]);inside=self._in_graph(e)
       if start[3]=='span' and inside and dx>=5:self.on_span(start[4],self._graph_point(e)[0])
@@ -1536,6 +1540,7 @@ class TraceDock(tk.Tk):
           if hit:
             name,index=hit;probe=self.probes[name][index];probe['label']=not probe['label'];self.status.set(f'{self._key_label(name)} P{index+1} etiketi '+('gösteriliyor' if probe['label'] else 'gizlendi'));self.redraw(preserve_view=True)
     elif e.button==2 and self._graph_button==2:self._graph_button=None;self.drag_mode=None;self.drag_start=None
+    if moving:self._schedule_detail()
  def _finish_click(self,e,generation):
     if generation!=self._span_generation or not self._in_graph(e) or not getattr(self,'_line_data',None):return
     hit=self._nearest_probe(e)

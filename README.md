@@ -187,3 +187,9 @@ Daraltılmış zaman çizelgesine veri veya yeni satır eklendiğinde panel otom
 ## İşlemler sırasında daraltılmış başlık yüksekliği (v1.0.18)
 
 Daraltılmış zaman çizelgesi artık ana bölme ayırıcısından tamamen ayrılan, doğal başlık yüksekliğinde bağımsız bir alt satırdır. Filtre/okuma/dışa aktarma ilerleme çubuğunun açılıp kapanması bu satıra fazladan yükseklik veremez. Daraltılmış durumda yalnızca başlık ve Genişlet düğmesi görünür; ayırıcı yoktur. Genişletildiğinde mevcut zaman çizelgesi verileri ve önceki bölme oranı korunarak düzenleme paneli geri eklenir. Arayüz işlev testi çalıştırılmadı.
+
+## Kompakt satırlar ve lejant çizim önbelleği (v1.0.19)
+
+Zaman çizelgesinin veri satırları sabit 76 yerine yazı ölçülerine göre, 96 DPI değerinde yaklaşık 42 piksel yüksekliğinde çizilir. İki satırlı paket adı/zaman bilgisi ve satır seçimi aynı geometriyi kullanır.
+
+Lejantın metin ve çizgileri pencere boyutu/DPI/konum değişmediğinde şeffaf görüntü önbelleğinden çizilir; kanal adına tıklayarak Y ekseni seçimi korunur. Önbelleğe grafikteki eski eğriler alınmaz. Kanal/etiket değişikliği lejantı yeniden oluşturur. Sürükleme sırasında kenar boşluğu hesapları ertelenir ve daha küçük min/max çizim özeti kullanılır; fare bırakılınca ayrıntılı çizim yenilenir. Kaynak örnekler, prob hesapları ve dışa aktarılan sayısal veriler değişmez. Performans ölçümü veya arayüz işlev testi çalıştırılmadı.
