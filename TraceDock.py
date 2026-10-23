@@ -275,6 +275,20 @@ def build_channel_cache(values,cancel=None):
             size*=4;levels.append((size,indices))
     return (first,last,minimum,maximum),levels
 
+def binomial_smooth(values,cancel=None):
+    """Centered three-sample FIR; preserve endpoints and missing-data gaps."""
+    count=len(values);result=np.empty(count,dtype=float)
+    if count<3:
+        result[:]=values
+    else:
+        result[0]=values[0];result[-1]=values[-1]
+        for start in range(1,count-1,65536):
+            check_cancel(cancel);stop=min(count-1,start+65536);left=values[start-1:stop-1];center=values[start:stop];right=values[start+1:stop+1]
+            valid=np.isfinite(left)&np.isfinite(center)&np.isfinite(right)
+            with np.errstate(invalid='ignore',over='ignore'):filtered=.25*left+.5*center+.25*right
+            result[start:stop]=np.where(valid,filtered,center)
+    result.flags.writeable=False;return result
+
 def prepare_dataset(d,progress=None,cancel=None):
     d.setdefault('uid',uuid.uuid4().hex)
     if '_base_channels' not in d:d['_base_channels']=dict(d['channels'])
@@ -426,6 +440,7 @@ class TraceDock(tk.Tk):
     if icon_path.exists():
       try:self.iconbitmap(str(icon_path))
       except Exception:pass
+    self.filtered_view=tk.BooleanVar(value=False)
     self._style(); self._build(); self.load_default_config(); self.redraw_all()
     watch_window_dpi(self)
     self.bind('<<DisplayScaleChanged>>',self._display_scale_changed,add='+')
@@ -467,6 +482,7 @@ class TraceDock(tk.Tk):
     exports=self._control_row(toolbar,fill='x',pady=(4,0))
     for label,command in [("Görünen grafiği CSV'ye aktar",self.export_graph_csv),("Seçili aralığı CSV'ye aktar",self.export_span_csv),("Kanal istatistiklerini CSV'ye aktar",self.export_stats_csv),("Görünen grafiği PNG olarak dışarı aktar",self.export_graph_png)]:
       self._button(exports,label,command).pack(side='left',padx=(0,6))
+    self._filter_toggle=ttk.Checkbutton(exports,text='Filtreli görünüm (3 nokta)',variable=self.filtered_view,command=self._toggle_filtered_view);self._filter_toggle.pack(side='left',padx=8)
     self.coords=tk.StringVar(value='X = —    Y = —');bar3=self._control_row(toolbar,fill='x',pady=(3,0));self._button(bar3,'Y eksenleri',self._show_y_axes).pack(side='right',padx=(6,0));ttk.Checkbutton(bar3,text='Lejantı göster',variable=self.legend_visible,command=self._toggle_legend).pack(side='right',padx=(8,0));tk.Label(bar3,text='Sol tık: prob ekle/sil • Sağ tık: prob etiketi • Sol sürükle: aralık • Sağ sürükle: kaydır • Tekerlek / orta tuş: zoom',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=2)
     self.graph_panels=ResponsivePanedWindow(right,fraction=.73,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.graph_panels.pack(fill='both',expand=True,padx=10,pady=(0,8));plotbox=tk.Frame(self.graph_panels,bg='#f4f8fb');self.graph_panels.add(plotbox,minsize=120,stretch='always');readout=tk.Label(plotbox,textvariable=self.coords,fg='#405d75',bg='#f4f8fb',font=ui_font(self,8),anchor='w',justify='left',padx=6,pady=2);readout.pack(side='bottom',fill='x');readout.bind('<Configure>',lambda e:readout.configure(wraplength=max(150,e.width-12))); self.fig=Figure(figsize=(9,5),dpi=100,facecolor='#f4f8fb');self.ax=self.fig.add_subplot(111);self.ax.set_facecolor('#ffffff');self.fig.subplots_adjust(left=.09,right=.985,top=.97,bottom=.12);self.canvas=FigureCanvasTkAgg(self.fig,master=plotbox);self.canvas.get_tk_widget().pack(fill='both',expand=True);self.canvas.mpl_connect('motion_notify_event',self.on_motion);self.canvas.mpl_connect('button_press_event',self.on_press);self.canvas.mpl_connect('button_release_event',self.on_release);self.canvas.mpl_connect('scroll_event',self.on_scroll);self.canvas.mpl_connect('resize_event',self._on_graph_resize)
     measurements=tk.Frame(self.graph_panels,bg='#f4f8fb',height=170);measurements.pack_propagate(False);self.graph_panels.add(measurements,minsize=100,height=170,stretch='always');self.tables=ttk.Notebook(measurements);self.tables.pack(fill='both',expand=True,padx=4,pady=4);stats_tab=tk.Frame(self.tables,bg='#f4f8fb');probe_tab=tk.Frame(self.tables,bg='#f4f8fb');self.tables.add(stats_tab,text='Kanal istatistikleri');self.tables.add(probe_tab,text='Problar');cols=('channel','start','end','min','max');self.table=AdaptiveTreeview(stats_tab,columns=cols,show='headings',height=4);labels=['Kanal','Başlangıç','Bitiş','Minimum','Maksimum'];widths=[280,150,150,150,150]
@@ -779,6 +795,7 @@ class TraceDock(tk.Tk):
       except queue.Empty:break
       if kind=='progress':self._job_progress['value']=payload[0]*100;self.status.set(job['title']+' • '+payload[1]);continue
       self._job=None;self._job_bar.pack_forget()
+      self._filter_toggle.configure(state='normal')
       if kind=='done':job['success'](payload)
       elif kind=='cancelled':self.status.set('İşlem iptal edildi')
       else:
@@ -830,6 +847,33 @@ class TraceDock(tk.Tk):
         factor=float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1));current=d['channels'][name]
         if (factor==1 and current is values) or (isinstance(current,ScaledValues) and current.base is values and current.factor==factor):continue
         d['channels'][name]=values if factor==1 else ScaledValues(values,factor)
+
+ def _filter_cache_ready(self):
+    return all(d.get('_smoothed',{}).get(name,{}).get('source') is raw for d in self.datasets for name,raw in d['_base_channels'].items())
+ def _toggle_filtered_view(self):
+    if not self.filtered_view.get():
+      self.redraw_all(preserve_view=True);self.status.set('Ham görünüm • grafik, prob, istatistik ve CSV ham değerleri kullanır');return
+    self.filtered_view.set(False)
+    if self._job is not None:return
+    if not self.datasets:self.status.set('Filtre için önce bir veri dosyası ekleyin');return
+    if self._filter_cache_ready():
+      self.filtered_view.set(True);self.redraw_all(preserve_view=True);self.status.set('Filtreli görünüm • 3 nokta yumuşatma • prob, istatistik ve CSV filtreli; ham kaynak korunur');return
+    pending=[raw for d in self.datasets for name,raw in d['_base_channels'].items() if d.get('_smoothed',{}).get(name,{}).get('source') is not raw]
+    def work(progress,cancel):
+      prepared={}
+      for i,raw in enumerate(pending):
+        check_cancel(cancel)
+        if id(raw) not in prepared:
+          values=binomial_smooth(raw,cancel);stats,levels=build_channel_cache(values,cancel);prepared[id(raw)]={'source':raw,'values':values,'stats':stats,'levels':levels}
+        progress((i+1)/len(pending),f'{i+1}/{len(pending)} kanal hazırlandı')
+      return prepared
+    def complete(prepared):
+      for d in self.datasets:
+        for name,raw in d['_base_channels'].items():
+          if id(raw) in prepared:d.setdefault('_smoothed',{})[name]=prepared[id(raw)]
+      if not self._filter_cache_ready():self.status.set('Veri listesi değişti; filtreyi yeniden açın.');return
+      self.filtered_view.set(True);self.redraw_all(preserve_view=True);self.status.set('Filtreli görünüm • 3 nokta yumuşatma • prob, istatistik ve CSV filtreli; ham kaynak korunur')
+    self._filter_toggle.configure(state='disabled');self._start_job('Filtre hazırlanıyor',work,complete)
 
  def _tdms_settings(self,channels):
     win=tk.Toplevel(self);win.title('TDMS kanal hızları ve çarpanları');size_dialog(win,self,860,600);win.transient(self);win.grab_set();win.configure(bg='#f4f8fb')
@@ -1110,7 +1154,7 @@ class TraceDock(tk.Tk):
     if new is None or not new.strip() or new.strip()==old:return
     new=new.strip()
     if new in d['channels']:messagebox.showwarning('Kanal adı kullanılıyor',f'“{new}” adlı kanal zaten var.',parent=self);return
-    for field in ('channels','units','ids','_base_channels','multipliers','channel_rates','sample_rates','_channel_x','_base_stats','_envelopes','_trailing_padding'):
+    for field in ('channels','units','ids','_base_channels','multipliers','channel_rates','sample_rates','_channel_x','_base_stats','_envelopes','_trailing_padding','_smoothed'):
       if old in d.get(field,{}):d[field]={new if key==old else key:value for key,value in d[field].items()}
     axis_key=(d['uid'],old)
     if axis_key in self._channel_axes:self._channel_axes[(d['uid'],new)]=self._channel_axes.pop(axis_key)
@@ -1125,6 +1169,7 @@ class TraceDock(tk.Tk):
 
 
  def redraw_all(self,preserve_view=False):
+    if self.filtered_view.get() and not self._filter_cache_ready():self.filtered_view.set(False)
     self.filelist.delete(0,'end')
     for d in self.datasets:self.filelist.insert('end',d['name'])
     self.filelist.configure(height=max(1,min(4,len(self.datasets))))
@@ -1152,8 +1197,11 @@ class TraceDock(tk.Tk):
         selected_column+=1
         key=('clip:'+clip['uid'],name);channel_track=('selected',selected_column) if policy=='Seçili kanal sırasına göre' else name if policy=='Kanal adına göre' else column if policy=='Sütun sırasına göre' else key;track=(row_uid,channel_track)
         if track not in tracks and len(tracks)>=limit:continue
+        base=d['_base_channels'][name];levels=d['_envelopes'][name];stats=d['_base_stats'][name];suffix=''
+        if self.filtered_view.get():
+          cached=d['_smoothed'][name];base=cached['values'];levels=cached['levels'];stats=cached['stats'];factor=float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1));y=base if factor==1 else ScaledValues(base,factor);suffix=' [filtreli: 3 nokta]'
         tracks.add(track);clock=SampleTimeAxis(len(y),d['channel_rates'][name],origin=start);channel_label=f'Seçili kanal {selected_column} / {name}' if policy=='Seçili kanal sırasına göre' else f'Sütun {column+1} / {name}' if policy=='Sütun sırasına göre' else name if policy=='Kanal adına göre' else f"{d['name']} / {name} [Paket {ci+1}]"
-        series.append({'key':key,'name':name,'dataset':d,'label':f"{row['name']} / {d['name']} / {name} [Paket {ci+1}]",'x':clock,'time':clock,'y':y,'track':track,'track_label':f"{row['name']} / {channel_label}",'row_uid':row_uid,'clip_index':ci,'clip_start':start,'clip_end':end})
+        series.append({'key':key,'name':name,'dataset':d,'label':f"{row['name']} / {d['name']} / {name} [Paket {ci+1}]"+suffix,'x':clock,'time':clock,'y':y,'base_values':base,'envelopes':levels,'stats':stats,'track':track,'track_label':f"{row['name']} / {channel_label}"+suffix,'row_uid':row_uid,'clip_index':ci,'clip_start':start,'clip_end':end})
     return series
  def _axis_slot(self,entry):
     return self._track_axes.setdefault(entry['track'],self._channel_axes.get((entry['dataset']['uid'],entry['name']),'L1'))
@@ -1249,7 +1297,7 @@ class TraceDock(tk.Tk):
     clock=entry['x'];count=len(clock);start=0;stop=count
     if bounds is not None and self.xcombo.get()=='Geçen süre':
       selection=visible_slice(clock,*sorted(bounds));start=selection.start;stop=selection.stop
-    return envelope_indices(entry['dataset']['_base_channels'][entry['name']],start,stop,entry['dataset']['_envelopes'][entry['name']],budget)
+    return envelope_indices(entry['base_values'],start,stop,entry['envelopes'],budget)
 
  def redraw(self,preserve_view=False):
     if self._lod_after is not None:self.after_cancel(self._lod_after);self._lod_after=None
@@ -1259,6 +1307,7 @@ class TraceDock(tk.Tk):
     self._background=None;self.ax.clear();self._guide_artists=[];self._line_data={};self._series_map={};self._legend_artist=None;self._legend_targets=[];self.ax.set_facecolor('#ffffff');self.ax.set_axisbelow(True);self.ax.tick_params(colors='#40596f')
     for spine in self.ax.spines.values():spine.set_color('#cbdbe7');spine.set_visible(True)
     self.ax.tick_params(axis='y',left=True,labelleft=True);series=self._plot_series();self._configure_y_axes(series);elapsed=self.xcombo.get()=='Geçen süre';budget=max(256,min(4000,60000//max(1,len(series))))
+    if self.filtered_view.get():self.ax.text(.99,.985,'Filtreli görünüm · 3 nokta',transform=self.ax.transAxes,ha='right',va='top',fontsize=8,color='#7261c4',bbox=dict(facecolor='#ffffff',edgecolor='#cbdbe7',alpha=.9),zorder=25)
     if not series:
       self.ax.set_xlim(0,1);self.ax.set_ylim(0,1);self.ax.text(.5,.5,'Grafik için Dosya/Kanal sütununa sağ tıklayıp zaman çizelgesine ekleyin',color='#40596f',ha='center',va='center',transform=self.ax.transAxes);self.span_artist=None;self.cursor_x=None;self.cursor_y=None;self._reset_axis_slots.clear();self._draw_guides();self.canvas.draw_idle();self._update_tables();return
     track_colors={};previous_tracks={};legend_entries=[]
@@ -1416,7 +1465,7 @@ class TraceDock(tk.Tk):
     for item in self.table.get_children():self.table.delete(item)
     for item in self.probe_table.get_children():self.probe_table.delete(item)
     for entry in self._series_map.values():
-      d=entry['dataset'];name=entry['name'];y=entry['y'];x=entry['x'];key=entry['key'];first,last,low,high=d['_base_stats'][name]
+      d=entry['dataset'];name=entry['name'];y=entry['y'];x=entry['x'];key=entry['key'];first,last,low,high=entry['stats']
       if first is not None:
         factor=float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1));minimum,maximum=sorted((low*factor,high*factor))
         self.table.insert('','end',values=(entry['label'],self._fmt(first*factor),self._fmt(last*factor),self._fmt(minimum),self._fmt(maximum)))
@@ -1455,7 +1504,7 @@ class TraceDock(tk.Tk):
     if self._job is not None:return
     series=self._export_series()
     if not series:messagebox.showinfo('CSV dışa aktar','Önce grafikte gösterilecek kanalları seçin.',parent=self);return
-    lo,hi=sorted(self.ax.get_xlim() if bounds is None else bounds);path=self._csv_options('Grafikte görünen verileri CSV olarak kaydet','tracedock-grafik.csv')
+    lo,hi=sorted(self.ax.get_xlim() if bounds is None else bounds);path=self._csv_options('Grafikte görünen verileri CSV olarak kaydet','tracedock-grafik-filtreli.csv' if self.filtered_view.get() else 'tracedock-grafik.csv')
     if not path:return
     decimal=self.decimal.get();elapsed=self.xcombo.get()=='Geçen süre'
     def work(progress,cancel):return write_series_csv(path,series,lo,hi,decimal,elapsed,progress,cancel)
@@ -1464,7 +1513,7 @@ class TraceDock(tk.Tk):
  def export_graph_png(self):
     if not self._plot_series():
       messagebox.showinfo('PNG dışa aktar','Önce bir veri dosyası ve grafikte gösterilecek kanal seçin.');return
-    p=filedialog.asksaveasfilename(title='Grafik görüntüsünü PNG olarak kaydet',defaultextension='.png',initialfile='tracedock-grafik.png',filetypes=[('PNG görüntüsü','*.png')])
+    p=filedialog.asksaveasfilename(title='Grafik görüntüsünü PNG olarak kaydet',defaultextension='.png',initialfile='tracedock-grafik-filtreli.png' if self.filtered_view.get() else 'tracedock-grafik.png',filetypes=[('PNG görüntüsü','*.png')])
     if not p:return
     cursor_visibility=[]
     for name in ('cursor_x','cursor_y'):
@@ -1486,7 +1535,7 @@ class TraceDock(tk.Tk):
  def export_stats_csv(self):
     items=self.table.get_children()
     if not items:messagebox.showinfo('CSV dışa aktar','Dışa aktarılacak kanal istatistiği bulunmuyor.');return
-    p=self._csv_options('Kanal istatistiklerini CSV olarak kaydet','tracedock-istatistikler.csv')
+    p=self._csv_options('Kanal istatistiklerini CSV olarak kaydet','tracedock-istatistikler-filtreli.csv' if self.filtered_view.get() else 'tracedock-istatistikler.csv')
     if not p:return
     delimiter=';' if self.decimal.get()==',' else ',';headers=['Kanal','Başlangıç','Bitiş','Minimum','Maksimum']
     try:

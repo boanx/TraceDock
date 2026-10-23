@@ -149,3 +149,14 @@ Fontların asıl punto değerleri saklanır; her monitörde DPI değerinden yeni
 
 “Exlab dosyası ekle” düğmesiyle .tdmbin, .csv, .txt, .tsv ve .asc dosyaları seçilebilir. TDMBIN için ara CSV üretilmez; okuma arka planda, ilerleme ve iptal desteğiyle yapılır. Kanal adları, ID, birimler ve dosyadaki sayısal örnekler korunur. Dosyanın zaman kanalı ölçüm kanalından ayrılır; kanal frekansı başlıktan alınır. İçe aktarılan kanallar mevcut zaman çizelgesi, çarpan, Y ekseni, prob ve dışa aktarma araçlarında kullanılır.
 Desteklenen ikili biçim: Exlab TDMBIN sürüm 8, double (float64), 182 baytlık kanal kayıtları; düzen 0 ve 1. Dosya boyutu, bölüm sınırları ve blok/paket sayıları kontrol edilir. Kanal metadata alanlarındaki ek katsayılar otomatik uygulanmaz. Kaynak dosya değiştirilmez.
+
+
+## Ham ve filtreli görünüm (v1.0.12)
+
+Aktarma düğmelerinin yanındaki “Filtreli görünüm (3 nokta)” kutusunu açıp kapatabilirsiniz. Varsayılan ham görünümdür. Kaynak dosya ve ham örnekler değiştirilmez. Filtre ilk kullanımda arka planda hazırlanır; ilerleme ve iptal desteklenir.
+
+Filtre, ortadaki örneğe yüzde 50 ve iki komşuya yüzde 25 ağırlık verir: y[n] = (x[n−1] + 2x[n] + x[n+1])/4. Merkezli üç örnekli düşük geçiren yumuşatmadır. 100 Hz veride örnekten örneğe değişen 50 Hz bileşenini bastırır; diğer yüksek frekanslı gerçek hareketleri de azaltır. Farklı örnekleme hızlarında frekans etkisi değişir. İlk ve son örnek korunur; eksik ölçüm komşuluklarında merkezdeki özgün değer tutulur. Ayrı kaynak/paket sınırları üzerinden filtre uygulanmaz. Örnek sayısı, frekans ve zaman konumları değişmez.
+
+Filtre açıkken grafik, problar, kanal istatistikleri, CSV ve PNG seçili filtreli görünümü kullanır. Filtreli kanal başlıklarında “[filtreli: 3 nokta]” yer alır; PNG üzerinde filtreli görünüm etiketi bulunur. Dosya adlarına varsayılan olarak “-filtreli” eklenir. Ham veriyi dışa aktarmak için kutuyu kapatın. Çarpanlar seçili görünümün üzerine uygulanır. Yakınlaştırma özeti filtreli serinin kendi önbelleğini kullanır.
+
+Yeni kaynak yüklendiğinde filtre önbelleği henüz hazır değilse görünüm ham moda döner; filtreyi tekrar açarak yeni kaynaklar için hazırlayın. Kaynakların frekansları eşitlenmez. Görünen dalgalanmadan tek başına mekanik rezonans veya şebeke girişimi sonucu çıkarılamaz.
