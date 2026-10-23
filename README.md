@@ -167,3 +167,9 @@ Filtre tasarımı: https://docs.scipy.org/doc/scipy/reference/generated/scipy.si
 ## Açılır kutu ve araç satırı yerleşimi (v1.0.14)
 
 Açılır kutular aynı ölçülen yazı tipini kullanır; varsayılan seçim ve liste seçenekleri için genişlik hesaplanır. Monitör ölçeği değiştiğinde araç satırları doğal içerik yüksekliğini yeniden alır. Zaman çizelgesi ve grafik araç çubuklarında yazının kırpılmasına ve eski satır yüksekliğinden kalan boşluklara neden olan sabit gömülü çerçeve yüksekliği kaldırıldı. Sığmayan satırlarda yatay kaydırma korunur. Fiziksel monitörlerde arayüz testi çalıştırılmadı.
+
+## Daraltılabilir paneller (v1.0.15)
+
+Zaman çizelgesindeki “Daralt” düğmesi paneli yalnızca başlık ve “Genişlet” düğmesinin göründüğü tek satıra sabitler. Daraltılmış panelin ayırıcısı gizlenir ve sürüklenerek yüksekliği değiştirilemez. Pencere boyutu değişse de başlık yüksekliği korunur; yeniden genişletildiğinde önceki bölme oranı geri gelir.
+
+Veri dosyaları başlığındaki “‹” düğmesi dosya ve kanal panelini dar bir dikey yan bara kapatır. Yan bardaki “›” veya “VERİ DOSYALARI” alanına tıklayarak paneli yeniden açabilirsiniz; klavyede Enter/Boşluk da kullanılabilir. Panel açıldığında önceki genişlik oranı geri gelir. Dar yan bar pencere ve DPI değişimlerinde aynı mantıksal genişlikte kalır. Bu düzenleme fiziksel monitörlerde işlev testi çalıştırılmadan paketlendi.

@@ -133,7 +133,11 @@ class ResponsivePanedWindow(tk.PanedWindow):
     def __init__(self, *args, fraction=.7, **kwargs):
         super().__init__(*args, **kwargs)
         self.fraction = fraction
+        self._fixed_pane = None
+        self._fixed_options = None
         self._resize_pending = None
+        self.bind('<ButtonPress-1>', self._block_fixed_sash, add='+')
+        self.bind('<B1-Motion>', self._block_fixed_sash, add='+')
         self.bind('<Configure>', self._schedule, add='+')
         self.bind('<ButtonRelease-1>', self._remember_split, add='+')
         self.bind('<Destroy>', self._destroy_resize, add='+')
@@ -144,11 +148,41 @@ class ResponsivePanedWindow(tk.PanedWindow):
             self._resize_pending = None
 
     def _remember_split(self, event):
+        if self._fixed_pane is not None:
+            return 'break'
         if len(self.panes()) != 2:
             return
         vertical = str(self.cget('orient')) == 'vertical'
         size = self.winfo_height() if vertical else self.winfo_width()
         self.fraction = self.sash_coord(0)[1 if vertical else 0]/max(1, size)
+
+    def _block_fixed_sash(self, event):
+        if self._fixed_pane is not None:
+            return 'break'
+
+    def fix_pane(self, index, pixels):
+        """Pin a collapsed pane to pixels and disable its resize divider."""
+        pixels = max(1, int(pixels))
+        if self._fixed_pane == (index, pixels):
+            return
+        pane = self.panes()[index]
+        dimension = 'height' if str(self.cget('orient')) == 'vertical' else 'width'
+        if self._fixed_pane is None:
+            self._fixed_options = (index, {key:self.panecget(pane, key) for key in ('minsize','stretch',dimension)}, self.cget('sashwidth'))
+        self._fixed_pane = (index, max(1, int(pixels)))
+        self.configure(sashwidth=0)
+        self.paneconfigure(pane, minsize=pixels, stretch='never', **{dimension:pixels})
+        self.resize_panes()
+
+    def release_fixed_pane(self):
+        if self._fixed_pane is None:
+            return
+        index, options, sashwidth = self._fixed_options
+        self._fixed_pane = None
+        self._fixed_options = None
+        self.configure(sashwidth=sashwidth)
+        self.paneconfigure(self.panes()[index], **options)
+        self.resize_panes()
 
     def _schedule(self, event=None):
         if self._resize_pending is None:
@@ -163,7 +197,11 @@ class ResponsivePanedWindow(tk.PanedWindow):
         size = self.winfo_height() if vertical else self.winfo_width()
         first = int(self.panecget(panes[0], 'minsize'))
         second = int(self.panecget(panes[1], 'minsize'))
-        position = max(first, min(size-second-int(self.cget('sashwidth')), round(size*self.fraction)))
+        if self._fixed_pane is not None:
+            index, pixels = self._fixed_pane
+            position = pixels if index == 0 else size-pixels-int(self.cget('sashwidth'))
+        else:
+            position = max(first, min(size-second-int(self.cget('sashwidth')), round(size*self.fraction)))
         self.sash_place(0, 0 if vertical else position, position if vertical else 0)
 
 

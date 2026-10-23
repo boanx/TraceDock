@@ -470,7 +470,7 @@ class TraceDock(tk.Tk):
     for name in ('Vertical.TScrollbar','Horizontal.TScrollbar'):style.configure(name,arrowsize=p(12))
     # An embedded TkAgg canvas has no FigureManager to handle monitor changes.
     # Let the backend update its own ratio instead of multiplying figure DPI.
-    self.canvas._update_device_pixel_ratio();self.canvas.draw_idle();self._schedule_sidebar_layout();self._render_timeline()
+    self.canvas._update_device_pixel_ratio();self.canvas.draw_idle();self._schedule_sidebar_layout();self._render_timeline();self.after_idle(self._sync_collapsed_panels)
  def _style(self):
     style=ttk.Style(self);style.theme_use('clam');style.configure('.',background='#f4f8fb',foreground='#203449',fieldbackground='#ffffff',bordercolor='#cbdbe7',lightcolor='#ffffff',darkcolor='#d9e4ed',font=ui_font(self,9))
     style.configure('Treeview',background='#ffffff',foreground='#203449',fieldbackground='#ffffff',rowheight=28,bordercolor='#d9e4ed',relief='flat');style.configure('Treeview.Heading',background='#eaf2f8',foreground='#405d75',font=ui_font(self,9,'bold'),padding=(8,7),relief='flat');style.map('Treeview',background=[('selected','#d7efee')],foreground=[('selected','#164e58')]);style.map('Treeview.Heading',background=[('active','#dceef2')])
@@ -485,8 +485,20 @@ class TraceDock(tk.Tk):
     if event.widget is self or isinstance(event.widget,tk.Toplevel):self.after_idle(lambda window=event.widget:apply_native_glass(window) if window.winfo_exists() else None)
  def _build(self):
     top=tk.Frame(self,bg='#e8eff5',height=58); top.pack(fill='x',padx=18);self._add_brand_logo(top); tk.Label(top,text='TraceDock',font=ui_font(self,18,'bold'),fg='#007f85',bg='#e8eff5').pack(side='left',pady=12); self.status=tk.StringVar(value='Çevrimdışı • veriler bilgisayarınızda kalır'); tk.Label(top,textvariable=self.status,fg='#60758a',bg='#e8eff5').pack(side='right')
-    self.workarea=ResponsivePanedWindow(self,fraction=.74,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.workarea.pack(fill='both',expand=True,padx=14,pady=(0,14));body=ResponsivePanedWindow(self.workarea,fraction=.24,orient='horizontal',bg='#d9e4ed',sashwidth=5,bd=0);self.workarea.add(body,minsize=320,stretch='always'); sidebar_host=tk.Frame(body,bg='#f4f8fb',width=320);right=tk.Frame(body,bg='#f4f8fb');body.add(sidebar_host,minsize=220);body.add(right,minsize=380);sidebar_host.configure(highlightthickness=1,highlightbackground='#ffffff');right.configure(highlightthickness=1,highlightbackground='#ffffff');left=self._build_scrollable_sidebar(sidebar_host)
-    self._panel_title(left,'VERİ DOSYALARI')
+    self.workarea=ResponsivePanedWindow(self,fraction=.74,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.workarea.pack(fill='both',expand=True,padx=14,pady=(0,14));body=ResponsivePanedWindow(self.workarea,fraction=.24,orient='horizontal',bg='#d9e4ed',sashwidth=5,bd=0);self.workarea.add(body,minsize=320,stretch='always'); sidebar_host=tk.Frame(body,bg='#f4f8fb',width=320);right=tk.Frame(body,bg='#f4f8fb');body.add(sidebar_host,minsize=220);body.add(right,minsize=380);sidebar_host.configure(highlightthickness=1,highlightbackground='#ffffff');right.configure(highlightthickness=1,highlightbackground='#ffffff')
+    self._sidebar_body=body;self._sidebar_host=sidebar_host;self._sidebar_collapsed=False
+    sidebar_host.rowconfigure(0,weight=1);sidebar_host.columnconfigure(0,weight=1)
+    self._sidebar_expanded=tk.Frame(sidebar_host,bg='#f4f8fb');self._sidebar_expanded.grid(row=0,column=0,sticky='nsew')
+    sidebar_header=tk.Frame(self._sidebar_expanded,bg='#f4f8fb');sidebar_header.pack(fill='x',padx=10,pady=(8,5))
+    self._button(sidebar_header,'‹',self._toggle_sidebar_panel).pack(side='right')
+    tk.Label(sidebar_header,text='VERİ DOSYALARI',font=ui_font(self,9,'bold'),fg='#60758a',bg='#f4f8fb').pack(side='left')
+    sidebar_scroll=tk.Frame(self._sidebar_expanded,bg='#f4f8fb');sidebar_scroll.pack(fill='both',expand=True)
+    left=self._build_scrollable_sidebar(sidebar_scroll)
+    self._sidebar_rail=tk.Canvas(sidebar_host,bg='#eaf2f8',bd=0,highlightthickness=0,cursor='hand2',takefocus=True)
+    self._sidebar_rail.bind('<Configure>',self._paint_sidebar_rail)
+    self._sidebar_rail.bind('<Button-1>',lambda e:self._toggle_sidebar_panel())
+    self._sidebar_rail.bind('<Return>',lambda e:self._toggle_sidebar_panel())
+    self._sidebar_rail.bind('<space>',lambda e:self._toggle_sidebar_panel())
     file_actions=ResponsiveButtonBar(left,bg='#f4f8fb');file_actions.pack(fill='x',padx=10)
     for label,command in [('Exlab dosyası ekle',self.add_strain),('CSV ekle',self.add_csv),('TDMS ekle',self.add_tdms),('Kaldır',self.remove_file)]:
       button=self._button(file_actions,label,command);button.configure(padx=7,pady=5);file_actions.add(button)
@@ -517,6 +529,21 @@ class TraceDock(tk.Tk):
     path=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))/'tracedock.png'
     if not path.exists():return
     image=tk.PhotoImage(file=str(path));self._brand_logo=image.subsample(max(1,round(image.width()/40)),max(1,round(image.height()/40)));tk.Label(parent,image=self._brand_logo,bg='#e8eff5').pack(side='left',padx=(0,10),pady=6)
+ def _paint_sidebar_rail(self,event=None):
+    c=self._sidebar_rail;c.delete('all');width=max(1,c.winfo_width());scale=display_fonts(self).dpi/96
+    c.create_text(width/2,round(20*scale),text='›',font=ui_font(self,16,'bold'),fill='#007f85')
+    c.create_text(width/2,round(128*scale),text='VERİ DOSYALARI',angle=90,font=ui_font(self,9,'bold'),fill='#405d75')
+ def _toggle_sidebar_panel(self):
+    self._sidebar_collapsed=not self._sidebar_collapsed
+    if self._sidebar_collapsed:
+      self._sidebar_expanded.grid_remove();self._sidebar_rail.grid(row=0,column=0,sticky='nsew');self._sync_collapsed_panels();self._sidebar_rail.focus_set()
+    else:
+      self._sidebar_rail.grid_remove();self._sidebar_expanded.grid();self._sidebar_body.release_fixed_pane();self._schedule_sidebar_layout()
+ def _sync_collapsed_panels(self,event=None):
+    if getattr(self,'_sidebar_collapsed',False):
+      self._sidebar_body.fix_pane(0,round(38*display_fonts(self).dpi/96));self._paint_sidebar_rail()
+    if getattr(self,'_timeline_collapsed',False):
+      self.workarea.fix_pane(1,self.timeline_header.winfo_reqheight()+10)
  def _build_scrollable_sidebar(self,parent):
     parent.rowconfigure(0,weight=1);parent.columnconfigure(0,weight=1)
     self.sidebar_canvas=tk.Canvas(parent,bg='#f4f8fb',highlightthickness=0,bd=0,width=300,yscrollincrement=24,xscrollincrement=24);self.sidebar_canvas.grid(row=0,column=0,sticky='nsew')
@@ -583,18 +610,21 @@ class TraceDock(tk.Tk):
  def _toggle_timeline_panel(self):
     self._timeline_collapsed=not self._timeline_collapsed
     if self._timeline_collapsed:
-      self.timeline_content.pack_forget();self.workarea.paneconfigure(self.timeline_dock,minsize=60,height=60);self.timeline_dock.configure(height=60);self.timeline_fold_button.configure(text='Genişlet ▾');self._timeline_expanded_fraction=self.workarea.fraction;self.workarea.fraction=1-60/max(1,self.workarea.winfo_height());self.workarea.resize_panes()
+      self.timeline_content.pack_forget();self.timeline_header_details.pack_forget();self.timeline_total_label.pack_forget();self.timeline_fold_button.configure(text='Genişlet ▾')
+      self.after_idle(self._sync_collapsed_panels)
     else:
-      self.timeline_content.pack(fill='both',expand=True);self.workarea.paneconfigure(self.timeline_dock,minsize=160,height=230);self.timeline_dock.configure(height=230);self.timeline_fold_button.configure(text='Küçült ▴');self.workarea.fraction=getattr(self,'_timeline_expanded_fraction',.74);self.workarea.resize_panes()
+      self.timeline_total_label.pack(side='right');self.timeline_header_details.pack(side='left');self.timeline_content.pack(fill='both',expand=True)
+      self.timeline_fold_button.configure(text='Daralt ▴');self.workarea.release_fixed_pane()
  def _build_timeline(self):
     dock=tk.Frame(self.workarea,bg='#f4f8fb',height=230);dock.configure(highlightthickness=1,highlightbackground='#ffffff');dock.pack_propagate(False);self.workarea.add(dock,minsize=160,height=230,stretch='never');self.timeline_dock=dock;self._timeline_collapsed=False
-    row=self._control_row(dock,fill='x',padx=10,pady=(6,2))
+    row=self._control_row(dock,fill='x',padx=10,pady=(6,2));self.timeline_header=row.master.master;self.timeline_header.bind('<Configure>',lambda e:self._sync_collapsed_panels(),add='+')
     tk.Label(row,text='ZAMAN ÇİZELGESİ',fg='#007f85',bg='#f4f8fb',font=ui_font(self,9,'bold')).pack(side='left',padx=(0,12))
-    self.timeline_fold_button=self._button(row,'Küçült ▴',self._toggle_timeline_panel);self.timeline_fold_button.configure(pady=2);self.timeline_fold_button.pack(side='right',padx=(8,0))
+    self.timeline_fold_button=self._button(row,'Daralt ▴',self._toggle_timeline_panel);self.timeline_fold_button.configure(pady=2);self.timeline_fold_button.pack(side='right',padx=(8,0))
     self.timeline_total=tk.StringVar(value='Toplam: 00:00:00.0000')
-    tk.Label(row,textvariable=self.timeline_total,fg='#203449',bg='#f4f8fb').pack(side='right')
-    tk.Label(row,text='Kanal eşleştirme',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=(12,5))
-    combo=AdaptiveCombobox(row,textvariable=self.timeline_match,state='readonly',width=25,values=['Seçili kanal sırasına göre','Kanal adına göre','Sütun sırasına göre','Ayrı çizgiler']);combo.pack(side='left');combo.bind('<<ComboboxSelected>>',lambda e:self._timeline_changed())
+    self.timeline_total_label=tk.Label(row,textvariable=self.timeline_total,fg='#203449',bg='#f4f8fb');self.timeline_total_label.pack(side='right')
+    self.timeline_header_details=tk.Frame(row,bg='#f4f8fb');self.timeline_header_details.pack(side='left')
+    tk.Label(self.timeline_header_details,text='Kanal eşleştirme',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=(12,5))
+    combo=AdaptiveCombobox(self.timeline_header_details,textvariable=self.timeline_match,state='readonly',width=25,values=['Seçili kanal sırasına göre','Kanal adına göre','Sütun sırasına göre','Ayrı çizgiler']);combo.pack(side='left');combo.bind('<<ComboboxSelected>>',lambda e:self._timeline_changed())
     self.timeline_content=tk.Frame(dock,bg='#f4f8fb');self.timeline_content.pack(fill='both',expand=True)
     row=self._control_row(self.timeline_content,fill='x',padx=10,pady=(0,3))
     tk.Label(row,text='Aktif satır',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=(0,6))
