@@ -241,3 +241,13 @@ Grafik, problar, lejant grupları ve CSV/PNG zamanları paket konumlarını kull
 YALNIZCA BİTİŞİK PAKETLERİN BİRLİKTE TAŞINMASI — v1.0.27
 
 Paket sürüklemede hareket yönündeki bütün paketler yerine yalnızca bitişik paket zinciri birlikte kayar. Arada boşluk varsa zincir orada kesilir; boşluğun ötesindeki paketler yerlerinde kalır. Bitişiklik sürükleme başlangıcındaki konumlara göre belirlenir; kayan zincir ayrı bir pakete ulaştığında çakışmadan durur. Yeni konumda tekrar sürüklemeye başlanırsa artık bitişik olan paketler yeni zincire katılabilir. Sıfırın önüne taşımaya izin verilmez. Üst/alt satır kenarlarına snap aynı sınırları kullanır; ulaşılamayan hedefe snap yapılmaz. Sayısal yuvarlama toleransı dışında pozitif boşluklar bitişik kabul edilmez. Manuel zaman/çakışma kontrolü ve gizle/göster korunur. Arayüz işlev testi çalıştırılmadı.
+
+KANAL BAZINDA CSV VE BOŞLUKLARA SIFIR — v1.0.28
+
+Görünen grafiği CSV’ye aktar ve Seçili aralığı CSV’ye aktar artık paket bazında değil, satır içindeki kanal eşleştirmesine göre kanal bazında sütun üretir. Aynı kanala ait paketler tek değer sütununda devam eder; başlıklarda paket/dosya adı yerine satır ve kanal adı, birim ve etkin filtre bulunur. Ayrı çizgiler görünümünde bile CSV paket başına çoğaltılmaz; seçili kanal sırası kullanılır. Birimleri farklı kanallar sayısal olarak karıştırılmadan ayrı sütunlarda tutulur.
+
+Zaman çizelgesinde paketlerin arasında boşluk varsa o süre CSV’de 0 ile doldurulur. Gizlenen paketlerin boşlukları da 0 olur. Kanalın ortak çizelge aralığındaki başlangıç/son boşlukları da doldurulur; çizelgenin dışındaki grafik boşluğu aktarılmaz. Aralık seçimi gerçek bir örnek içermese bile aradaki 0 örneklerini aktarabilir. Kaynak paketteki NaN/eksik ölçümler 0’a çevrilmez; mevcut boş hücre gösterimini korur.
+
+Ölçüm örnekleri yeniden örneklenmez. Her kanalın boşluğu, önceki paketin veri hızında doldurulur; başlangıç boşluğunda ilk paketin hızı kullanılır. Paketlerin farklı veri hızları korunur. Kanalların zaman dizileri aynıysa tek ortak time sütunu, farklıysa her kanal için time/value çifti yazılır. Bu nedenle farklı Hz verilerde satır numarası ortak bir zaman anlamına gelmez; ilgili zaman sütununu kullanın. Ölçüm değerleri, çarpan, birim, etkin ham/filtreli seçim ve HH:MM:SS.SSSS biçimi korunur.
+
+Boşluklar bütün boyutta RAM’e alınmadan parçalar halinde yazılır. Aynı kanala ait paketlerin zaman aralıkları çakışmışsa belirsiz veri yazmak yerine hata gösterilir. Kaynak dosyalar değiştirilmez. İstatistik CSV ve PNG işlevleri korunur. Arayüz işlev testi çalıştırılmadı.

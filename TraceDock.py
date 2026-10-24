@@ -138,6 +138,48 @@ class ScaledValues(NumericView):
         return values.astype(dtype,copy=False) if dtype is not None else values
     def __getitem__(self,key):return self.base[key]*self.factor
 
+class ConstantValues(NumericView):
+    """Represent an export gap without allocating a potentially huge zero array."""
+    def __init__(self,count,value=0.):self.count=int(count);self.value=float(value)
+    def __len__(self):return self.count
+    def __array__(self,dtype=None,copy=None):return np.full(self.count,self.value,dtype=dtype or float)
+    def __getitem__(self,key):
+        if isinstance(key,slice):return type(self)(len(range(*key.indices(self.count))),self.value)
+        if np.isscalar(key):
+            index=int(key);index=index+self.count if index<0 else index
+            if not 0<=index<self.count:raise IndexError(index)
+            return self.value
+        indices=np.asarray(key)
+        if indices.dtype==bool:indices=np.flatnonzero(indices)
+        if np.any((indices>=self.count)|(indices< -self.count)):raise IndexError('sample index')
+        return np.full(indices.shape,self.value)
+
+def channel_export_series(groups,duration,cancel=None):
+    """Join each channel's packets and fill uncovered time at native cadence."""
+    prepared=[]
+    for group in groups:
+        check_cancel(cancel)
+        segments=sorted((entry for entry in group['segments'] if len(entry['x'])),key=lambda entry:entry['x'][0])
+        if not segments:continue
+        times=[];values=[];cursor=0.;rate=segments[0]['x'].rate
+        def gap(start,end,hz):
+            if end-start<=max(1e-9,4*max(math.ulp(start),math.ulp(end))):return
+            steps=(end-start)*hz
+            if not math.isfinite(steps) or steps>np.iinfo(np.int64).max:raise ValueError('Zaman boşluğu CSV için fazla büyük.')
+            count=max(1,int(math.ceil(steps-max(1e-9,4*math.ulp(steps)))))
+            axis=SampleTimeAxis(count,hz,origin=start)
+            while count and axis[count-1]>=end:count-=1
+            if count:times.append(SampleTimeAxis(count,hz,origin=start));values.append(ConstantValues(count))
+        for entry in segments:
+            check_cancel(cancel);axis=entry['x'];start=float(axis[0]);end=float(axis[-1])+1/axis.rate
+            tolerance=max(1e-9,4*max(math.ulp(cursor),math.ulp(start)))
+            if start<cursor-tolerance:raise ValueError('Aynı kanalın paketleri zaman çizelgesinde çakışıyor: '+group['label'])
+            gap(cursor,start,rate);times.append(axis);values.append(entry['y']);cursor=end;rate=axis.rate
+        gap(cursor,duration,rate)
+        if sum(len(axis) for axis in times)>np.iinfo(np.int64).max:raise ValueError('CSV zaman dizisi fazla büyük.')
+        prepared.append({'label':group['label'],'x':JoinedTimeAxis(times),'y':JoinedValues(values)})
+    return prepared
+
 class ReferenceXAxis(NumericView):
     """Evaluate a chosen X channel only at the points actually needed for display/export."""
     __slots__=('clock','reference_time','reference_values')
@@ -1040,11 +1082,20 @@ class TraceDock(tk.Tk):
     else:self._timeline_vscroll('scroll',-3 if event.delta>0 else 3,'units')
     return 'break'
  def _export_series(self):
-    series=self._plot_series()
-    if not self._timeline_active() or self.timeline_match.get()=='Ayrı çizgiler':return series
-    tracks={}
-    for entry in series:tracks.setdefault((entry['track'],entry.get('unit','')),[]).append(entry)
-    return [{'label':items[0]['track_label'],'x':JoinedTimeAxis([e['x'] for e in items]),'y':JoinedValues([e['y'] for e in items])} for items in tracks.values()]
+    tracks={};policy=self.timeline_match.get()
+    for entry in self._plot_series():
+      # Even "separate curves" is exported by channel, never by packet.
+      key=entry['track'] if policy!='Ayrı çizgiler' else (entry['row_uid'],('selected',entry['channel_index']))
+      key=(key,entry.get('unit',''))
+      if key not in tracks:
+        row=self._timeline_row_info(entry['row_uid'])['name']
+        channel=entry['name'] if policy=='Kanal adına göre' else 'Kanal '+str(entry['track'][1]+1 if policy=='Sütun sırasına göre' else entry['channel_index'])
+        label=row+' / '+channel
+        if entry.get('unit'):label+=' ['+entry['unit']+']'
+        if self.filtered_view.get():label+=' [filtreli: '+filter_description(self._active_filter)+']'
+        tracks[key]={'label':label,'segments':[]}
+      tracks[key]['segments'].append(entry)
+    return list(tracks.values())
  def _panel_title(self,parent,text): tk.Label(parent,text=text,font=ui_font(self,9,'bold'),fg='#60758a',bg='#f4f8fb',anchor='w').pack(fill='x',padx=10,pady=(12,7))
  def _button(self,parent,text,cmd):return GlassButton(parent,text,cmd)
  def _start_job(self,title,work,on_success,on_error=None):
@@ -1543,7 +1594,7 @@ class TraceDock(tk.Tk):
           cached=d['_smoothed'][name];base=cached['values'];levels=cached['levels'];stats=cached['stats'];factor=float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1));y=base if factor==1 else ScaledValues(base,factor);suffix=f' [filtreli: {filter_description(self._active_filter)}]'
         unit=str(clip.get('unit_override',d.get('units',{}).get(name,''))).strip();suffix=((' ['+unit+']') if unit else '')+suffix
         tracks.add(track);clock=SampleTimeAxis(len(y),d['channel_rates'][name],origin=start);channel_label=f'Seçili kanal {selected_column} / {name}' if policy=='Seçili kanal sırasına göre' else f'Sütun {column+1} / {name}' if policy=='Sütun sırasına göre' else name if policy=='Kanal adına göre' else f"{d['name']} / {name} [Paket {ci+1}]"
-        series.append({'key':key,'name':name,'dataset':d,'unit':unit,'label':f"{row['name']} / {d['name']} / {name} [Paket {ci+1}]"+suffix,'x':clock,'time':clock,'y':y,'base_values':base,'envelopes':levels,'stats':stats,'track':track,'track_label':f"{row['name']} / {channel_label}"+suffix,'row_uid':row_uid,'clip_index':ci,'clip_start':start,'clip_end':end})
+        series.append({'key':key,'name':name,'dataset':d,'unit':unit,'label':f"{row['name']} / {d['name']} / {name} [Paket {ci+1}]"+suffix,'x':clock,'time':clock,'y':y,'base_values':base,'envelopes':levels,'stats':stats,'track':track,'track_label':f"{row['name']} / {channel_label}"+suffix,'row_uid':row_uid,'clip_index':ci,'channel_index':selected_column,'clip_start':start,'clip_end':end})
     return series
  def _axis_slot(self,entry):
     return self._track_axes.setdefault(entry['track'],self._channel_axes.get((entry['dataset']['uid'],entry['name']),'L1'))
@@ -1915,8 +1966,11 @@ class TraceDock(tk.Tk):
     if not series:messagebox.showinfo('CSV dışa aktar','Önce grafikte gösterilecek kanalları seçin.',parent=self);return
     lo,hi=sorted(self.ax.get_xlim() if bounds is None else bounds);path=self._csv_options('Grafikte görünen verileri CSV olarak kaydet','tracedock-grafik-filtreli.csv' if self.filtered_view.get() else 'tracedock-grafik.csv')
     if not path:return
-    decimal=self.decimal.get();elapsed=self.xcombo.get()=='Geçen süre'
-    def work(progress,cancel):return write_series_csv(path,series,lo,hi,decimal,elapsed,progress,cancel)
+    decimal=self.decimal.get();elapsed=self.xcombo.get()=='Geçen süre';duration=self._timeline_duration();lo=max(0.,lo);hi=min(duration,hi)
+    def work(progress,cancel):
+      if hi<lo:raise ValueError('Seçilen aralık zaman çizelgesinin dışında.')
+      channels=channel_export_series(series,duration,cancel)
+      return write_series_csv(path,channels,lo,hi,decimal,elapsed,progress,cancel)
     self._start_job('CSV dışa aktarılıyor',work,lambda count:self.status.set(f'{count:,} satır dışa aktarıldı • {len(series)} kanal • {Path(path).name}'))
 
  def export_graph_png(self):
