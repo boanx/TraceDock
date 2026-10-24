@@ -482,7 +482,7 @@ def elapsed_text(seconds):
 class TraceDock(tk.Tk):
  def __init__(self):
     super().__init__(); self.title('TraceDock'); window_width=min(1500,max(640,self.winfo_screenwidth()-60));window_height=min(920,max(480,self.winfo_screenheight()-100));self.geometry(f'{window_width}x{window_height}');self.minsize(min(900,window_width),min(620,window_height)); self.configure(bg='#e8eff5')
-    self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_row_drag=None;self._timeline_snap_preview=None;self.timeline_snap=tk.BooleanVar(value=True);self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Kanal adına göre');self.datasets=[]; self.active=0; self.selected=set();self._tree_anchor=None; self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None;self._channel_axes={};self._track_axes={};self._track_colors={};self._y_axes={};self._reset_axis_slots=set();self._legend_artist=None;self._legend_targets=[];self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}
+    self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_row_drag=None;self._timeline_snap_preview=None;self.timeline_snap=tk.BooleanVar(value=True);self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Seçili kanal sırasına göre');self.datasets=[]; self.active=0; self.selected=set();self._tree_anchor=None; self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None;self._channel_axes={};self._track_axes={};self._track_colors={};self._y_axes={};self._reset_axis_slots=set();self._legend_artist=None;self._legend_targets=[];self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}
     icon_path=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))/'tracedock.ico'
     self._window_icons={}
     if icon_path.exists():
@@ -733,6 +733,11 @@ class TraceDock(tk.Tk):
  def _previous_timeline_row(self,uid):
     index=next((i for i,row in enumerate(self.timeline_rows) if row['uid']==uid),0)
     return self.timeline_rows[index-1] if index>0 else None
+ def _rename_timeline_row(self,uid):
+    row=self._timeline_row_info(uid)
+    name=simpledialog.askstring('Satır / lejant adı','Yeni satır adı:',initialvalue=row['name'],parent=self)
+    if name is None or not name.strip():return
+    row['name']=name.strip();self.redraw_all(preserve_view=True);self.status.set('Satır ve lejant adı güncellendi')
  def _edit_row_start(self,uid):
     row=self._timeline_row_info(uid)
     value=simpledialog.askstring('Satır başlangıç zamanı',row['name']+' başlangıcı:\nSaniye (ör. 12,5) veya HH:MM:SS.SSSS girin.',initialvalue=elapsed_text(self._row_start(uid)),parent=self)
@@ -833,7 +838,7 @@ class TraceDock(tk.Tk):
       index=row_indices[row['uid']];y=28+index*row_height
       if y+row_height<top+28 or y>bottom:continue
       rounded_rect(c,left+3,y+3,left+margin-10,y+row_height-3,r=6,fill='#edf0f3' if row.get('hidden',False) else '#d7efee' if row['uid']==self.timeline_row else '#eaf2f8',outline='#c7d0d8' if row.get('hidden',False) else PALETTE[index%len(PALETTE)])
-      c.create_text(left+12,y+title_y,text=row['name'],fill='#203449',anchor='w',font=ui_font(self,9,'bold'));c.create_text(left+12,y+detail_y,text=elapsed_text(self._row_start(row['uid']))+(' · Gizli' if row.get('hidden',False) else ''),fill='#60758a',anchor='w',font=ui_font(self,8))
+      c.create_text(left+12,y+title_y,text=row['name'],fill='#203449',anchor='w',font=ui_font(self,9,'bold'));c.create_text(left+12,y+detail_y,text=self._timeline_title(elapsed_text(self._row_start(row['uid']))+(' · Gizli' if row.get('hidden',False) else ''),(margin-24)*factor),fill='#60758a',anchor='w',font=ui_font(self,8))
     c.create_rectangle(left,top,right,top+27,fill='#f4f8fb',outline='');c.create_text(left+12,top+13,text='SATIRLAR',fill='#60758a',anchor='w',font=ui_font(self,8,'bold'))
     if total>0:
       step=max(total/1000000,100/max(scale,1e-12));power=10**math.floor(math.log10(step));step=next(v*power for v in (1,2,5,10) if v*power>=step);first=max(0,math.ceil(left/scale/step))
@@ -917,6 +922,7 @@ class TraceDock(tk.Tk):
       menu.add_command(label='Paket birimini değiştir…',command=lambda:self._edit_packet_unit(clip_uid))
       menu.add_command(label='Kaynak birimlerini kullan',command=lambda:self._reset_packet_unit(clip_uid))
       menu.add_separator()
+    menu.add_command(label='Satır adını değiştir…',command=lambda:self._rename_timeline_row(row_uid))
     menu.add_command(label='Satır başlangıcını değiştir…',command=lambda:self._edit_row_start(row_uid))
     align_state='normal' if self._previous_timeline_row(row_uid) is not None else 'disabled'
     menu.add_command(label='Üst satırın başlangıcına hizala',state=align_state,command=lambda:self._align_row_start(row_uid,'start'))
@@ -1627,12 +1633,16 @@ class TraceDock(tk.Tk):
     if self.filtered_view.get():self.ax.text(.99,.985,f'Filtreli görünüm · {filter_description(self._active_filter)}',transform=self.ax.transAxes,ha='right',va='top',fontsize=8,color='#7261c4',bbox=dict(facecolor='#ffffff',edgecolor='#cbdbe7',alpha=.9),zorder=25)
     if not series:
       self.ax.set_xlim(*(view[0] if view else (0,max(self._timeline_duration(),1e-9) if self.timeline else 1)));self.ax.set_ylim(*(view[1].get('L1',(0,1)) if view else (0,1)));self.ax.text(.5,.5,('Görünür veri yok. Zaman çizelgesinde sağ tık ile Göster seçin.' if self.timeline else 'Grafik için Dosya/Kanal sütununa sağ tıklayıp zaman çizelgesine ekleyin'),color='#40596f',ha='center',va='center',transform=self.ax.transAxes);self.span_artist=None;self.cursor_x=None;self.cursor_y=None;self._reset_axis_slots.clear();self._draw_guides();self.canvas.draw_idle();self._update_tables();return
-    track_colors={};previous_tracks={};legend_entries=[]
+    track_colors={};previous_tracks={};legend_entries=[];row_legends={}
     for entry in series:
       track=entry['track'];first=track not in track_colors;track_colors.setdefault(track,self._track_colors.get(track,PALETTE[len(track_colors)%len(PALETTE)]));color=track_colors[track];slot=self._axis_slot(entry);axis=self._y_axes[slot];entry['axis']=axis;entry['axis_slot']=slot
       key=entry['key'];x=entry['x'];y=entry['y'];indices=self._display_indices(entry,view[0] if view else None,budget);valid=np.isfinite(x[indices])&np.isfinite(y[indices]);indices=indices[valid];label=entry['track_label']+' ['+Y_AXIS_LABELS[slot]+']'
       line,=axis.plot(x[indices],y[indices],lw=1.15,color=color,label=label if first else '_nolegend_',picker=8,rasterized=True);self._line_data[line]=(key,x,y,indices);self._series_map[key]=entry
-      if first:legend_entries.append((line,label,track))
+      if first:
+        row_uid=entry['row_uid']
+        if row_uid not in row_legends:
+          row_legends[row_uid]=[line,self._timeline_row_info(row_uid)['name'],[]];legend_entries.append(row_legends[row_uid])
+        row_legends[row_uid][2].append(track)
       previous=previous_tracks.get(track)
       if previous is not None and previous['clip_index']==entry['clip_index']-1:
         px=previous['x'];py=previous['y'];rate=previous['dataset']['channel_rates'][previous['name']]
@@ -1720,9 +1730,9 @@ class TraceDock(tk.Tk):
     self.span_artist=self.ax.axvspan(self.span[0],self.span[1],color='#007f85',alpha=.16,zorder=0);self.status.set(f'Seçili aralık: {self._number(self.span[0])} — {self._number(self.span[1])}');self.canvas.draw_idle()
  def on_press(self,e):
     if e.button in (1,3) and self._legend_artist is not None and self._legend_artist.get_visible():
-      for artist,track in self._legend_targets:
+      for artist,tracks in self._legend_targets:
         if artist.contains(e)[0]:
-          self.click_start=None;self._graph_button=None;widget=self.canvas.get_tk_widget();self._axis_menu([track],widget.winfo_rootx()+e.x,widget.winfo_rooty()+widget.winfo_height()-e.y);return
+          self.click_start=None;self._graph_button=None;widget=self.canvas.get_tk_widget();self._axis_menu(tracks,widget.winfo_rootx()+e.x,widget.winfo_rooty()+widget.winfo_height()-e.y);return
     if not self._in_graph(e):return
     x,y=self._graph_point(e);ylims={slot:axis.get_ylim() for slot,axis in self._y_axes.items()}
     if e.button in (1,3):

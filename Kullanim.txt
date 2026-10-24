@@ -217,3 +217,9 @@ Sol satır başlığını yatay sürüklemek o satırdaki bütün paketleri birl
 Üst satıra snap kutusu açıkken satırın başlangıcı, bir üst satırın başlangıç/bitişine 10 mantıksal piksel yaklaşınca hizalanır; mor kılavuz hedefi gösterir. Shift basılı tutulursa o sürüklemede snap atlanır. Sağ tık menüsündeki Üst satırın başlangıcına hizala / bitişine hizala komutları tam hizalama yapar. İlk satırda bu komutlar pasiftir. Boş üst satırın bitişi başlangıcına eşittir. Snap tek seferlik hizalamadır; üst satır daha sonra taşınırsa alt satır otomatik takip etmez.
 
 Paketleri ayrı ayrı gizlemek için pakete sağ tıklayıp Paketi gizle / göster seçin veya satır sağ tık → Paket görünürlüğü listesindeki işaretleri açıp kapatın. Gizli paketlerin süre ve zaman konumları korunur; satır gizli ise paket işaretleri ayrı saklanır, grafikte görünmesi için satırın da açık olması gerekir. Yeni özellikler mevcut oturum içindir. Arayüz işlev testi çalıştırılmadı.
+
+AYNI SATIRDA DEVAM VE TEK LEJANT ADI — v1.0.24
+
+Varsayılan kanal eşleştirmesi Seçili kanal sırasına göre oldu: aynı satırdaki paketlerin birinci seçili kanalı birinci eğrinin, ikinci seçili kanalı ikinci eğrinin devamı olur. Kaynak dosyalarda kanal adları farklı olsa da sıradaki eş kanal aynı renk/iz üzerinde uç uca devam eder. Seçili kanal sırası kaynak tablosundaki kanal sırasıdır. Birden fazla ölçüm kanalı tek fiziksel seriye karıştırılmaz; her biri ayrı devam eder. Gelişmiş eşleştirme seçenekleri kutuda korunur.
+
+Lejantta her görünür satır yalnızca bir adla yer alır; temsil çizgisi satırın ilk görünür eğrisinin rengindedir. Satıra sağ tık → Satır adını değiştir ile lejant adını da değiştirebilirsiniz. Lejant adına tıklanan renk/eksen işlemi satırdaki görünür eğrilerin tümüne uygulanır; tek eğri için doğrudan eğriye sağ tıklayın. Paketleri ayrı ayrı gizleme, satır başlangıcı ve snap özellikleri korunur. Arayüz işlev testi çalıştırılmadı.
