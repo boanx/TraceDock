@@ -460,6 +460,18 @@ def write_series_csv(path,series,lo,hi,decimal='.',elapsed=True,progress=None,ca
     return count
 
 
+def timeline_seconds(text):
+    text=text.strip().replace(',','.')
+    if ':' in text:
+        parts=text.split(':')
+        if len(parts)!=3:raise ValueError('HH:MM:SS.SSSS veya saniye girin.')
+        hours=int(parts[0]);minutes=int(parts[1]);seconds=float(parts[2])
+        if hours<0 or not 0<=minutes<60 or not 0<=seconds<60:raise ValueError('Saat alanları geçersiz.')
+        value=hours*3600+minutes*60+seconds
+    else:value=float(text)
+    if not math.isfinite(value) or value<0:raise ValueError('Başlangıç sıfır veya pozitif, sonlu bir süre olmalı.')
+    return value
+
 def elapsed_text(seconds):
     sign='-' if seconds<0 else ''
     ticks=int(round(abs(float(seconds))*10000));total,frac=divmod(ticks,10000)
@@ -470,7 +482,7 @@ def elapsed_text(seconds):
 class TraceDock(tk.Tk):
  def __init__(self):
     super().__init__(); self.title('TraceDock'); window_width=min(1500,max(640,self.winfo_screenwidth()-60));window_height=min(920,max(480,self.winfo_screenheight()-100));self.geometry(f'{window_width}x{window_height}');self.minsize(min(900,window_width),min(620,window_height)); self.configure(bg='#e8eff5')
-    self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Kanal adına göre');self.datasets=[]; self.active=0; self.selected=set();self._tree_anchor=None; self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None;self._channel_axes={};self._track_axes={};self._track_colors={};self._y_axes={};self._reset_axis_slots=set();self._legend_artist=None;self._legend_targets=[];self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}
+    self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_row_drag=None;self._timeline_snap_preview=None;self.timeline_snap=tk.BooleanVar(value=True);self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Kanal adına göre');self.datasets=[]; self.active=0; self.selected=set();self._tree_anchor=None; self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None;self._channel_axes={};self._track_axes={};self._track_colors={};self._y_axes={};self._reset_axis_slots=set();self._legend_artist=None;self._legend_targets=[];self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}
     icon_path=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))/'tracedock.ico'
     self._window_icons={}
     if icon_path.exists():
@@ -664,7 +676,9 @@ class TraceDock(tk.Tk):
     tk.Label(row,text='Aktif satır',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=(0,6))
     self.timeline_row_combo=AdaptiveCombobox(row,state='readonly',width=16);self.timeline_row_combo.pack(side='left',padx=(0,5));self.timeline_row_combo.bind('<<ComboboxSelected>>',self._timeline_select_row)
     self._button(row,'Yeni satır',self.timeline_new_row).pack(side='left',padx=(0,4));self._button(row,'Satırı kaldır',self.timeline_remove_row).pack(side='left',padx=(0,8))
-    tk.Label(row,text='Aynı satır: uç uca • Farklı satırlar: üst üste • Sürükle: sırala / satır değiştir',fg='#60758a',bg='#f4f8fb').pack(side='left')
+    self._button(row,'Başlangıç…',lambda:self._edit_row_start(self.timeline_row)).pack(side='left',padx=(0,6))
+    ttk.Checkbutton(row,text='Üst satıra snap',variable=self.timeline_snap).pack(side='left',padx=(0,8))
+    tk.Label(row,text='Başlığı sürükle: satır zamanı • Paketi sürükle: sıra/satır • Shift: snap kapalı',fg='#60758a',bg='#f4f8fb').pack(side='left')
     row=self._control_row(self.timeline_content,fill='x',padx=10,pady=(0,3))
     for label,command in [('Seçili kanalları ekle',self.timeline_add),('Tümünü sırala',self.timeline_all),('←',lambda:self.timeline_move(-1)),('→',lambda:self.timeline_move(1)),('Paketi kaldır',self.timeline_remove),('Temizle',self.timeline_clear)]:self._button(row,label,command).pack(side='left',padx=(0,4))
     for label,command in [('Sığdır',self.timeline_fit),('−',lambda:self.timeline_zoom(1/1.5)),('+',lambda:self.timeline_zoom(1.5))]:self._button(row,label,command).pack(side='right',padx=2)
@@ -700,9 +714,9 @@ class TraceDock(tk.Tk):
     self._render_timeline()
  def _timeline_layout(self):
     sources={d['uid']:d for d in self.datasets};result=[]
-    # Each row starts at zero and has its own cumulative clock.
+    # Row offsets move all packages together without changing their durations.
     for row in self.timeline_rows:
-      start=0.
+      start=float(row.get('start_offset',0.))
       for clip in self.timeline:
         if clip.get('row_uid',self.timeline_rows[0]['uid'])!=row['uid']:continue
         d=sources.get(clip['dataset_uid'])
@@ -712,6 +726,33 @@ class TraceDock(tk.Tk):
         duration=max((len(d['channels'][n])/d['channel_rates'][n] for n in self._clip_channels(clip,d)),default=0.)
         result.append((clip,d,start,start+duration));start+=duration
     return result
+ def _row_start(self,uid):
+    return float(self._timeline_row_info(uid).get('start_offset',0.))
+ def _row_end(self,uid):
+    return max((end for clip,d,start,end in self._timeline_layout() if clip.get('row_uid',self.timeline_rows[0]['uid'])==uid),default=self._row_start(uid))
+ def _previous_timeline_row(self,uid):
+    index=next((i for i,row in enumerate(self.timeline_rows) if row['uid']==uid),0)
+    return self.timeline_rows[index-1] if index>0 else None
+ def _edit_row_start(self,uid):
+    row=self._timeline_row_info(uid)
+    value=simpledialog.askstring('Satır başlangıç zamanı',row['name']+' başlangıcı:\nSaniye (ör. 12,5) veya HH:MM:SS.SSSS girin.',initialvalue=elapsed_text(self._row_start(uid)),parent=self)
+    if value is None:return
+    try:seconds=timeline_seconds(value)
+    except (ValueError,OverflowError) as exc:
+      messagebox.showerror('Geçersiz süre',str(exc),parent=self);return
+    row['start_offset']=seconds;self._timeline_changed();self.status.set(row['name']+' başlangıcı: '+elapsed_text(seconds))
+ def _align_row_start(self,uid,edge):
+    previous=self._previous_timeline_row(uid)
+    if previous is None:return
+    seconds=self._row_start(previous['uid']) if edge=='start' else self._row_end(previous['uid'])
+    self._timeline_row_info(uid)['start_offset']=seconds;self._timeline_changed();self.status.set('Satır üst satırın '+('başlangıcına' if edge=='start' else 'bitişine')+' hizalandı: '+elapsed_text(seconds))
+ def _snap_row_start(self,uid,seconds,pixels_per_second,disabled=False):
+    previous=self._previous_timeline_row(uid)
+    if disabled or not self.timeline_snap.get() or previous is None:return seconds,None
+    targets=[(self._row_start(previous['uid']),'Üst satır başlangıcı'),(self._row_end(previous['uid']),'Üst satır bitişi')]
+    target,label=min(targets,key=lambda item:abs(item[0]-seconds))
+    if abs(target-seconds)*pixels_per_second<=10*display_fonts(self).dpi/96:return target,label
+    return seconds,None
  def _timeline_duration(self):return max((end for clip,d,start,end in self._timeline_layout()),default=0.)
  def _timeline_active(self):return bool(self.timeline)
  def _clip_channels(self,clip,d):return [name for name in clip.get('channels',d['channels']) if name in d['channels']]
@@ -792,7 +833,7 @@ class TraceDock(tk.Tk):
       index=row_indices[row['uid']];y=28+index*row_height
       if y+row_height<top+28 or y>bottom:continue
       rounded_rect(c,left+3,y+3,left+margin-10,y+row_height-3,r=6,fill='#edf0f3' if row.get('hidden',False) else '#d7efee' if row['uid']==self.timeline_row else '#eaf2f8',outline='#c7d0d8' if row.get('hidden',False) else PALETTE[index%len(PALETTE)])
-      c.create_text(left+12,y+title_y,text=row['name'],fill='#203449',anchor='w',font=ui_font(self,9,'bold'));c.create_text(left+12,y+detail_y,text='Gizli satır' if row.get('hidden',False) else 'Aktif satır' if row['uid']==self.timeline_row else 'Seçmek için tıkla',fill='#60758a',anchor='w',font=ui_font(self,8))
+      c.create_text(left+12,y+title_y,text=row['name'],fill='#203449',anchor='w',font=ui_font(self,9,'bold'));c.create_text(left+12,y+detail_y,text=elapsed_text(self._row_start(row['uid']))+(' · Gizli' if row.get('hidden',False) else ''),fill='#60758a',anchor='w',font=ui_font(self,8))
     c.create_rectangle(left,top,right,top+27,fill='#f4f8fb',outline='');c.create_text(left+12,top+13,text='SATIRLAR',fill='#60758a',anchor='w',font=ui_font(self,8,'bold'))
     if total>0:
       step=max(total/1000000,100/max(scale,1e-12));power=10**math.floor(math.log10(step));step=next(v*power for v in (1,2,5,10) if v*power>=step);first=max(0,math.ceil(left/scale/step))
@@ -802,6 +843,11 @@ class TraceDock(tk.Tk):
         if x<left+margin:continue
         c.create_line(x,top+20,x,top+27,fill='#60758a');c.create_text(x+3,top+11,text=elapsed_text(sec),fill='#526c82',anchor='w',font=ui_font(self,8))
     c.scale('all',0,0,factor,factor)
+    if self._timeline_snap_preview is not None:
+      seconds,label=self._timeline_snap_preview;x=(margin+seconds*scale)*factor
+      if (left+margin)*factor<=x<=c.winfo_width():
+        c.create_line(x,0,x,c.winfo_height(),fill='#7261c4',width=2,dash=(4,3))
+        c.create_text(x+4,c.winfo_height()-5,text=label,anchor='sw',font=ui_font(self,8),fill='#7261c4')
  def _timeline_row_at(self,event):
     margin,header,row_height=self._timeline_geometry()
     if event.y<header:return None
@@ -813,15 +859,27 @@ class TraceDock(tk.Tk):
     x=self.timeline_canvas.canvasx(event.x);y=self.timeline_canvas.canvasy(event.y)
     return next((uid for uid,row,a,b,c,d in self._timeline_rects if a<=x<b and c<=y<d),None)
  def _timeline_press(self,event):
-    row=self._timeline_row_at(event)
+    row=self._timeline_row_at(event);self._timeline_row_drag=None;self._timeline_snap_preview=None
     if row is not None:self.timeline_row=row
-    self.timeline_selected=self._timeline_hit(event);self._timeline_drag=(self.timeline_selected,event.x,event.y);self._render_timeline()
+    self.timeline_selected=self._timeline_hit(event);self._timeline_drag=(self.timeline_selected,event.x,event.y)
+    if row is not None and event.x<self._timeline_geometry()[0]:
+      self._timeline_drag=None
+      self._timeline_row_drag={'uid':row,'x':event.x,'origin':self._row_start(row),'scale':max(1e-12,self._timeline_scale*display_fonts(self).dpi/96),'changed':False}
+    self._render_timeline()
  def _timeline_drop_target(self,event,uid):
     row=self._timeline_row_at(event)
     if row is None:return None
     margin,header,row_height=self._timeline_geometry();x=self.timeline_canvas.canvasx(max(margin,event.x));peers=[(key,a,b) for key,r,a,b,y1,y2 in self._timeline_rects if r==row and key!=uid];target=sum(x>(a+b)/2 for key,a,b in peers)
     return row,target,peers
  def _timeline_motion(self,event):
+    if self._timeline_row_drag is not None:
+      drag=self._timeline_row_drag;delta=event.x-drag['x']
+      if not drag['changed'] and abs(delta)<5:return
+      drag['changed']=True;self._timeline_fit=False
+      seconds=max(0.,drag['origin']+delta/drag['scale'])
+      seconds,label=self._snap_row_start(drag['uid'],seconds,drag['scale'],disabled=bool(event.state&1))
+      self._timeline_row_info(drag['uid'])['start_offset']=seconds;self._timeline_snap_preview=(seconds,label) if label else None
+      self._render_timeline();self.status.set('Satır başlangıcı: '+elapsed_text(seconds)+(' • '+label if label else ''));return
     if not self._timeline_drag or self._timeline_drag[0] is None:return
     c=self.timeline_canvas;margin,header,row_height=self._timeline_geometry()
     if event.x<margin+15:c.xview_scroll(-1,'units')
@@ -833,6 +891,11 @@ class TraceDock(tk.Tk):
       row,index,peers=target;ri=next(i for i,r in enumerate(self.timeline_rows) if r['uid']==row);y=header+ri*row_height;x=peers[index][1] if index<len(peers) else peers[-1][2] if peers else margin
       ya=max(y+1,c.canvasy(0)+header);yb=min(y+row_height-1,c.canvasy(c.winfo_height()));c.create_rectangle(c.canvasx(0)+margin,ya,c.canvasx(c.winfo_width()),yb,outline='#007f85',width=2,tags='drop');c.create_line(max(x,c.canvasx(0)+margin),ya,max(x,c.canvasx(0)+margin),yb,fill='#203449',width=3,tags='drop')
  def _timeline_release(self,event):
+    if self._timeline_row_drag is not None:
+      self._timeline_motion(event);drag=self._timeline_row_drag;self._timeline_row_drag=None;self._timeline_snap_preview=None
+      if drag['changed']:self._timeline_changed()
+      else:self._render_timeline()
+      return
     drag=self._timeline_drag;self._timeline_drag=None;self.timeline_canvas.delete('drop')
     if not drag or drag[0] is None or max(abs(event.x-drag[1]),abs(event.y-drag[2]))<5:return
     uid=drag[0];target=self._timeline_drop_target(event,uid);clip=next((c for c in self.timeline if c['uid']==uid),None)
@@ -854,6 +917,17 @@ class TraceDock(tk.Tk):
       menu.add_command(label='Paket birimini değiştir…',command=lambda:self._edit_packet_unit(clip_uid))
       menu.add_command(label='Kaynak birimlerini kullan',command=lambda:self._reset_packet_unit(clip_uid))
       menu.add_separator()
+    menu.add_command(label='Satır başlangıcını değiştir…',command=lambda:self._edit_row_start(row_uid))
+    align_state='normal' if self._previous_timeline_row(row_uid) is not None else 'disabled'
+    menu.add_command(label='Üst satırın başlangıcına hizala',state=align_state,command=lambda:self._align_row_start(row_uid,'start'))
+    menu.add_command(label='Üst satırın bitişine hizala',state=align_state,command=lambda:self._align_row_start(row_uid,'end'))
+    menu.add_separator()
+    packets=tk.Menu(menu,tearoff=False,bg='#f4f8fb',fg='#203449',font=ui_font(self,9));self._timeline_packet_visibility_vars=[]
+    for index,packet in enumerate(clip for clip in self.timeline if clip.get('row_uid',self.timeline_rows[0]['uid'])==row_uid):
+      source=next((d for d in self.datasets if d['uid']==packet['dataset_uid']),None)
+      checked=tk.BooleanVar(value=not packet.get('hidden',False));self._timeline_packet_visibility_vars.append(checked)
+      packets.add_checkbutton(label=f"{index+1}. "+(source['name'] if source else 'Paket'),variable=checked,command=lambda uid=packet['uid'],value=checked:self._timeline_set_hidden('packet',uid,not value.get()))
+    menu.add_cascade(label='Paket görünürlüğü (işaretli = açık)',menu=packets,state='normal' if self._timeline_packet_visibility_vars else 'disabled')
     row_hidden=row.get('hidden',False)
     menu.add_command(label='Satırı göster' if row_hidden else 'Satırı gizle',command=lambda:self._timeline_set_hidden('row',row_uid,not row_hidden))
     menu.add_separator();menu.add_command(label='Tümünü göster',command=self._timeline_show_all)
@@ -870,6 +944,10 @@ class TraceDock(tk.Tk):
     for item in self.timeline_rows+self.timeline:item['hidden']=False
     self.redraw_all(preserve_view=True);self.status.set('Tüm satır ve paketler gösteriliyor')
  def _timeline_focus(self,event):
+    if event.x<self._timeline_geometry()[0]:
+      uid=self._timeline_row_at(event)
+      if uid is not None:self._edit_row_start(uid)
+      return
     uid=self._timeline_hit(event)
     if uid is None:return
     self.timeline_selected=uid

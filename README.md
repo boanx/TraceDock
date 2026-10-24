@@ -223,3 +223,13 @@ Kesim alanının yanındaki kutudan Low pass, High pass veya Band pass seçin; a
 Üç tür de SOS Butterworth ileri/geri filtreleme kullanır; tasarımda iki geçiş telafisi ile girilen sınırlar birleşik −3 dB noktalarıdır. Prototip derecesi 4, band pass tasarımının tek yön derecesi 8’dir. Kayıt ve boşluk kenarlarında sınır etkileri olabilir; üç örnekten kısa sonlu parçalar ham kalır. Örnek sayıları ve zamanlar korunur. Ham örnekler değiştirilmez.
 
 Önbellek türü, alt/üst sınırları ve kanal Hz değerini birlikte izler. Grafik etiketi, lejant, problar, istatistikler, CSV ve PNG etkin filtreyi kullanır; etkin tür ve frekanslar başlıklarda belirtilir. Filtreli görünüm kutusunu kapatarak ham veriye dönün. Önceki renk, birim ve gizle/göster özellikleri korunur. Arayüz işlev testi çalıştırılmadı.
+
+## Satır başlangıçları, sürükleme ve snap (v1.0.23)
+
+Her zaman çizelgesi satırının başlangıç zamanı vardır; varsayılan 0 saniyedir. Aktif satır için Başlangıç… düğmesini kullanın, satırın sol başlığına çift tıklayın veya sağ tık → Satır başlangıcını değiştir seçin. Pozitif/sıfır saniye (12,5 veya 12.5) ya da HH:MM:SS.SSSS girilebilir. Başlık altındaki zaman satırın başlangıcını gösterir.
+
+Sol satır başlığını yatay sürüklemek o satırdaki bütün paketleri birlikte kaydırır. Paketlerin kendi üzerindeki sürükleme mevcut sıralama/satır değiştirme işlevini korur. Sürükleme sırasında çizelge önizlenir; bırakınca grafik, prob ve CSV/PNG zamanları güncellenir. Ölçek sürükleme boyunca sabit kalır; isterseniz sonra Sığdır düğmesini kullanın. Ham örnekler, frekans, paket süreleri ve satır içindeki uç uca sıra değişmez.
+
+Üst satıra snap kutusu açıkken satırın başlangıcı, bir üst satırın başlangıç/bitişine 10 mantıksal piksel yaklaşınca hizalanır; mor kılavuz hedefi gösterir. Shift basılı tutulursa o sürüklemede snap atlanır. Sağ tık menüsündeki Üst satırın başlangıcına hizala / bitişine hizala komutları tam hizalama yapar. İlk satırda bu komutlar pasiftir. Boş üst satırın bitişi başlangıcına eşittir. Snap tek seferlik hizalamadır; üst satır daha sonra taşınırsa alt satır otomatik takip etmez.
+
+Paketleri ayrı ayrı gizlemek için pakete sağ tıklayıp Paketi gizle / göster seçin veya satır sağ tık → Paket görünürlüğü listesindeki işaretleri açıp kapatın. Gizli paketlerin süre ve zaman konumları korunur; satır gizli ise paket işaretleri ayrı saklanır, grafikte görünmesi için satırın da açık olması gerekir. Yeni özellikler mevcut oturum içindir. Arayüz işlev testi çalıştırılmadı.
