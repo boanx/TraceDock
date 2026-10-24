@@ -243,3 +243,13 @@ Lejantta her görünür satır yalnızca bir adla yer alır; temsil çizgisi sat
 ## Uzun satır adları (v1.0.25)
 
 Zaman çizelgesindeki sol satır başlığı, kutunun kullanılabilir genişliği ve gerçek font ölçüsüne göre üç noktayla kısaltılır; uzun ad paket alanına taşmaz. Uzun adın üzerine fareyi getirince tam adı gösteren bilgi kutusu açılır. Başlık gösterimindeki satır sonları tek satıra düzleştirilir. Gerçek satır adı ve lejant adı değiştirilmez. Arayüz işlev testi çalıştırılmadı.
+
+## Paket zamanları, komşu taşıma ve kenar snap (v1.0.26)
+
+Paketin üzerine sol basıp yatay sürüklemek artık doğrudan zamanını değiştirir. Sağa taşırken seçili paket ve sağındaki paketler, sola taşırken seçili paket ve solundakiler aynı miktarda kayar; paket süreleri ve aralarındaki mevcut boşluklar korunur. Sola taşıma, etkilenen ilk paket sıfıra gelince durur. Yön değiştirildiğinde önizleme sürükleme başlangıcındaki konumlardan yeniden hesaplanır. Satır başlığı sürüklemesi bütün satırı taşımayı sürdürür. Ctrl+sürükle eski paket sıralama/satır değiştirme işlemidir; hedef satırdaki paketler bu işlemde uç uca yeniden sıralanır.
+
+Paket kenarlarına snap açıkken taşınan paketin hem başlangıcı hem bitişi, diğer üst ve alt satırlardaki tüm paketlerin başlangıç/bitiş kenarlarıyla karşılaştırılır. 10 mantıksal piksel yakınlıktaki geçerli en yakın kenara hizalanır; mor kılavuz gösterilir. Shift snap’i geçici kapatır. Gizli paketler de zamanlarını koruduğundan snap hedefidir. Eski Üst satırın başlangıcına/bitişine hizala menüleri kaldırıldı.
+
+Pakete sağ tıklayıp Paket başlangıç zamanını değiştir veya Paket bitiş zamanını değiştir seçin. Saniye veya HH:MM:SS.SSSS girilebilir. Bu iki işlem paketin süresini korur ve yalnızca o paketi taşır; başka paketleri itmez. Aynı satırda, gizli paketler dahil başka bir paketle çakışma varsa uyarı verilir ve değişiklik uygulanmaz. Bitiş ve başlangıç kenarlarının tam temas etmesi çakışma değildir. Farklı satırların üst üste gelmesine izin verilir.
+
+Grafik, problar, lejant grupları ve CSV/PNG zamanları paket konumlarını kullanır. Ham örnekler/frekanslar değiştirilmez; paketleri tek tek gizle/göster korunur. Yeni konumlar mevcut oturum içindir. Arayüz işlev testi çalıştırılmadı.
