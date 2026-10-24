@@ -239,3 +239,7 @@ Paketleri ayrı ayrı gizlemek için pakete sağ tıklayıp Paketi gizle / göst
 Varsayılan kanal eşleştirmesi Seçili kanal sırasına göre oldu: aynı satırdaki paketlerin birinci seçili kanalı birinci eğrinin, ikinci seçili kanalı ikinci eğrinin devamı olur. Kaynak dosyalarda kanal adları farklı olsa da sıradaki eş kanal aynı renk/iz üzerinde uç uca devam eder. Seçili kanal sırası kaynak tablosundaki kanal sırasıdır. Birden fazla ölçüm kanalı tek fiziksel seriye karıştırılmaz; her biri ayrı devam eder. Gelişmiş eşleştirme seçenekleri kutuda korunur.
 
 Lejantta her görünür satır yalnızca bir adla yer alır; temsil çizgisi satırın ilk görünür eğrisinin rengindedir. Satıra sağ tık → Satır adını değiştir ile lejant adını da değiştirebilirsiniz. Lejant adına tıklanan renk/eksen işlemi satırdaki görünür eğrilerin tümüne uygulanır; tek eğri için doğrudan eğriye sağ tıklayın. Paketleri ayrı ayrı gizleme, satır başlangıcı ve snap özellikleri korunur. Arayüz işlev testi çalıştırılmadı.
+
+## Uzun satır adları (v1.0.25)
+
+Zaman çizelgesindeki sol satır başlığı, kutunun kullanılabilir genişliği ve gerçek font ölçüsüne göre üç noktayla kısaltılır; uzun ad paket alanına taşmaz. Uzun adın üzerine fareyi getirince tam adı gösteren bilgi kutusu açılır. Başlık gösterimindeki satır sonları tek satıra düzleştirilir. Gerçek satır adı ve lejant adı değiştirilmez. Arayüz işlev testi çalıştırılmadı.

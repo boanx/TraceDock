@@ -686,7 +686,7 @@ class TraceDock(tk.Tk):
     self.timeline_canvas=tk.Canvas(area,bg='#ffffff',height=145,highlightthickness=0);self.timeline_canvas.pack(side='left',fill='both',expand=True)
     vsb=ttk.Scrollbar(area,orient='vertical',command=self._timeline_vscroll);vsb.pack(side='right',fill='y');self.timeline_canvas.configure(yscrollcommand=vsb.set)
     sb=ttk.Scrollbar(self.timeline_content,orient='horizontal',command=self._timeline_scroll);sb.pack(side='bottom',before=area,fill='x',padx=10,pady=(0,4));self.timeline_canvas.configure(xscrollcommand=sb.set)
-    c=self.timeline_canvas;c.bind('<Configure>',lambda e:self._render_timeline());c.bind('<Button-1>',self._timeline_press);c.bind('<Button-3>',self._timeline_context_menu);c.bind('<B1-Motion>',self._timeline_motion);c.bind('<ButtonRelease-1>',self._timeline_release);c.bind('<Double-Button-1>',self._timeline_focus);c.bind('<MouseWheel>',self._timeline_wheel)
+    c=self.timeline_canvas;c.bind('<Configure>',lambda e:self._render_timeline());c.bind('<Button-1>',self._timeline_press);c.bind('<Button-3>',self._timeline_context_menu);c.bind('<Motion>',self._timeline_hover);c.bind('<Leave>',self._timeline_hide_tip);c.bind('<B1-Motion>',self._timeline_motion);c.bind('<ButtonRelease-1>',self._timeline_release);c.bind('<Double-Button-1>',self._timeline_focus);c.bind('<MouseWheel>',self._timeline_wheel)
  def _timeline_row_info(self,uid):return next((row for row in self.timeline_rows if row['uid']==uid),self.timeline_rows[0])
  def _timeline_sync_rows(self):
     valid={r['uid'] for r in self.timeline_rows}
@@ -804,6 +804,7 @@ class TraceDock(tk.Tk):
     row_height=max(42*factor,ui_font(self,9,'bold').metrics('linespace')+ui_font(self,8).metrics('linespace')+12*factor)
     return max(120*factor,ui_font(self,8).measure('Seçmek için tıkla')+24*factor),28*factor,row_height
  def _timeline_title(self,text,width):
+    text=str(text).replace('\r',' ').replace('\n',' ');width=max(0,width)
     font=ui_font(self,9,'bold')
     if font.measure(text)<=width:return text
     lo=0;hi=len(text)
@@ -813,7 +814,7 @@ class TraceDock(tk.Tk):
       else:hi=mid-1
     return text[:lo]+'…' if font.measure('…')<=width else ''
  def _render_timeline(self):
-    self._timeline_sync_rows();c=self.timeline_canvas;c.delete('all');layout=self._timeline_layout();total=max((e for cl,d,s,e in layout),default=0.);factor=display_fonts(self).dpi/96;width=max(160,c.winfo_width()/factor);height=max(75,c.winfo_height()/factor);margin=self._timeline_geometry()[0]/factor;row_height=self._timeline_geometry()[2]/factor
+    self._timeline_sync_rows();c=self.timeline_canvas;c.delete('all');self._timeline_tip_row=None;layout=self._timeline_layout();total=max((e for cl,d,s,e in layout),default=0.);factor=display_fonts(self).dpi/96;width=max(160,c.winfo_width()/factor);height=max(75,c.winfo_height()/factor);margin=self._timeline_geometry()[0]/factor;row_height=self._timeline_geometry()[2]/factor
     title_y=7+ui_font(self,9,'bold').metrics('linespace')/factor/2;detail_y=row_height-6-ui_font(self,8).metrics('linespace')/factor/2
     self.timeline_total.set(f'{len(self.timeline_rows)} satır • {len(layout)} paket • Toplam: {elapsed_text(total)}')
     if self._timeline_fit:self._timeline_scale=(width-margin-15)/max(total,1e-9)
@@ -838,7 +839,7 @@ class TraceDock(tk.Tk):
       index=row_indices[row['uid']];y=28+index*row_height
       if y+row_height<top+28 or y>bottom:continue
       rounded_rect(c,left+3,y+3,left+margin-10,y+row_height-3,r=6,fill='#edf0f3' if row.get('hidden',False) else '#d7efee' if row['uid']==self.timeline_row else '#eaf2f8',outline='#c7d0d8' if row.get('hidden',False) else PALETTE[index%len(PALETTE)])
-      c.create_text(left+12,y+title_y,text=row['name'],fill='#203449',anchor='w',font=ui_font(self,9,'bold'));c.create_text(left+12,y+detail_y,text=self._timeline_title(elapsed_text(self._row_start(row['uid']))+(' · Gizli' if row.get('hidden',False) else ''),(margin-24)*factor),fill='#60758a',anchor='w',font=ui_font(self,8))
+      c.create_text(left+12,y+title_y,text=self._timeline_title(row['name'],(margin-28)*factor),fill='#203449',anchor='w',font=ui_font(self,9,'bold'));c.create_text(left+12,y+detail_y,text=self._timeline_title(elapsed_text(self._row_start(row['uid']))+(' · Gizli' if row.get('hidden',False) else ''),(margin-24)*factor),fill='#60758a',anchor='w',font=ui_font(self,8))
     c.create_rectangle(left,top,right,top+27,fill='#f4f8fb',outline='');c.create_text(left+12,top+13,text='SATIRLAR',fill='#60758a',anchor='w',font=ui_font(self,8,'bold'))
     if total>0:
       step=max(total/1000000,100/max(scale,1e-12));power=10**math.floor(math.log10(step));step=next(v*power for v in (1,2,5,10) if v*power>=step);first=max(0,math.ceil(left/scale/step))
@@ -853,6 +854,24 @@ class TraceDock(tk.Tk):
       if (left+margin)*factor<=x<=c.winfo_width():
         c.create_line(x,0,x,c.winfo_height(),fill='#7261c4',width=2,dash=(4,3))
         c.create_text(x+4,c.winfo_height()-5,text=label,anchor='sw',font=ui_font(self,8),fill='#7261c4')
+ def _timeline_hide_tip(self,event=None):
+    self.timeline_canvas.delete('row_tip');self._timeline_tip_row=None
+ def _timeline_hover(self,event):
+    c=self.timeline_canvas;uid=self._timeline_row_at(event);margin,header,row_height=self._timeline_geometry();factor=display_fonts(self).dpi/96
+    if uid is None or event.x>=margin or self._timeline_row_drag is not None or self._timeline_drag is not None:
+      self._timeline_hide_tip();return
+    name=self._timeline_row_info(uid)['name']
+    if self._timeline_title(name,margin-28*factor)==name:
+      self._timeline_hide_tip();return
+    if getattr(self,'_timeline_tip_row',None)==uid and c.find_withtag('row_tip'):return
+    self._timeline_hide_tip();self._timeline_tip_row=uid
+    left=c.canvasx(0);top=c.canvasy(0);width=c.winfo_width();height=c.winfo_height()
+    item=c.create_text(c.canvasx(event.x+12),c.canvasy(event.y+16),text=name,anchor='nw',font=ui_font(self,9),fill='#203449',width=max(80,min(520*factor,width-20)),tags='row_tip')
+    box=c.bbox(item)
+    if box is None:return
+    dx=max(left+6-box[0],min(0,left+width-6-box[2]));dy=max(top+6-box[1],min(0,top+height-6-box[3]))
+    c.move(item,dx,dy);x1,y1,x2,y2=c.bbox(item)
+    background=c.create_rectangle(x1-4,y1-3,x2+4,y2+3,fill='#ffffff',outline='#91b8ca',tags='row_tip');c.tag_lower(background,item)
  def _timeline_row_at(self,event):
     margin,header,row_height=self._timeline_geometry()
     if event.y<header:return None
