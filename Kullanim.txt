@@ -237,3 +237,7 @@ Paket kenarlarına snap açıkken taşınan paketin hem başlangıcı hem bitiş
 Pakete sağ tıklayıp Paket başlangıç zamanını değiştir veya Paket bitiş zamanını değiştir seçin. Saniye veya HH:MM:SS.SSSS girilebilir. Bu iki işlem paketin süresini korur ve yalnızca o paketi taşır; başka paketleri itmez. Aynı satırda, gizli paketler dahil başka bir paketle çakışma varsa uyarı verilir ve değişiklik uygulanmaz. Bitiş ve başlangıç kenarlarının tam temas etmesi çakışma değildir. Farklı satırların üst üste gelmesine izin verilir.
 
 Grafik, problar, lejant grupları ve CSV/PNG zamanları paket konumlarını kullanır. Ham örnekler/frekanslar değiştirilmez; paketleri tek tek gizle/göster korunur. Yeni konumlar mevcut oturum içindir. Arayüz işlev testi çalıştırılmadı.
+
+YALNIZCA BİTİŞİK PAKETLERİN BİRLİKTE TAŞINMASI — v1.0.27
+
+Paket sürüklemede hareket yönündeki bütün paketler yerine yalnızca bitişik paket zinciri birlikte kayar. Arada boşluk varsa zincir orada kesilir; boşluğun ötesindeki paketler yerlerinde kalır. Bitişiklik sürükleme başlangıcındaki konumlara göre belirlenir; kayan zincir ayrı bir pakete ulaştığında çakışmadan durur. Yeni konumda tekrar sürüklemeye başlanırsa artık bitişik olan paketler yeni zincire katılabilir. Sıfırın önüne taşımaya izin verilmez. Üst/alt satır kenarlarına snap aynı sınırları kullanır; ulaşılamayan hedefe snap yapılmaz. Sayısal yuvarlama toleransı dışında pozitif boşluklar bitişik kabul edilmez. Manuel zaman/çakışma kontrolü ve gizle/göster korunur. Arayüz işlev testi çalıştırılmadı.
