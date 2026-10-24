@@ -213,3 +213,13 @@ Seçim aynı satırdaki eşleştirilmiş eğrinin bütün devam paketlerine, lej
 Dosya/Kanal tablosuna Birim sütunu eklendi. Kanalın Birim hücresine çift tıklayarak tek kanalın; dosya satırındaki hücreye çift tıklayarak dosyadaki tüm kanalların birimini düzenleyebilirsiniz. Dosya/Kanal sağ tık menüsünde de Birim değiştir bulunur. Zaman çizelgesindeki pakete sağ tıklayıp Paket birimini değiştir ile yalnızca o pakete ortak birim atayın. Kaynak birimlerini kullan bu paket atamasını kaldırır.
 
 Birim düzenlemesi etiket/metaveri değişikliğidir; örnekler otomatik dönüştürülmez. Örneğin N → kN dönüşümü için ayrıca 0,001 çarpanı girilmelidir. Y eksenleri etkin eğrilerin birimlerini gösterir; aynı eksende farklı birimler varsa her biri listelenir, eksik birim “birimsiz” olarak belirtilir. Farklı fiziksel büyüklükleri mevcut Y ekseni seçenekleriyle ayırabilirsiniz. Lejant ve CSV başlıkları birimi içerir; farklı birimli devam paketleri CSV içinde ayrı seriler olarak aktarılır. Birim ayarları mevcut oturum içindir.
+
+## Low pass, High pass ve Band pass (v1.0.22)
+
+Kesim alanının yanındaki kutudan Low pass, High pass veya Band pass seçin; ardından Uygula düğmesine basın. Low pass, kesim üzerindeki yüksek frekansları zayıflatır. High pass, kesim altındaki düşük frekansları ve DC bileşenini zayıflatır. Band pass seçildiğinde Alt (Hz) ve Üst (Hz) alanları görünür; bant dışındaki bileşenler zayıflatılır. Varsayılan tür Low pass olarak kalır. Tür/sınır değişiklikleri Uygula ile etkinleşir; hazırlık bitene kadar önceki etkin görünüm korunur.
+
+Örnek: 100 Hz veride Low pass 10 Hz, High pass 1 Hz veya Band pass 1–20 Hz seçilebilir. Her türde frekanslar pozitif ve örnekleme hızının yarısından küçük olmalıdır; Band pass için alt < üst koşulu aranır. Nokta/virgül kabul edilir. Farklı kanal hızları eşitlenmez; her kanal kendi örnekleme hızıyla filtrelenir.
+
+Üç tür de SOS Butterworth ileri/geri filtreleme kullanır; tasarımda iki geçiş telafisi ile girilen sınırlar birleşik −3 dB noktalarıdır. Prototip derecesi 4, band pass tasarımının tek yön derecesi 8’dir. Kayıt ve boşluk kenarlarında sınır etkileri olabilir; üç örnekten kısa sonlu parçalar ham kalır. Örnek sayıları ve zamanlar korunur. Ham örnekler değiştirilmez.
+
+Önbellek türü, alt/üst sınırları ve kanal Hz değerini birlikte izler. Grafik etiketi, lejant, problar, istatistikler, CSV ve PNG etkin filtreyi kullanır; etkin tür ve frekanslar başlıklarda belirtilir. Filtreli görünüm kutusunu kapatarak ham veriye dönün. Önceki renk, birim ve gizle/göster özellikleri korunur. Arayüz işlev testi çalıştırılmadı.

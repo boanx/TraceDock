@@ -278,31 +278,50 @@ def build_channel_cache(values,cancel=None):
             size*=4;levels.append((size,indices))
     return (first,last,minimum,maximum),levels
 
-def lowpass_filter(values,rate,cutoff,cancel=None):
-    """Zero-phase lowpass, with the combined -3 dB cutoff in Hz.
+def frequency_filter(values,rate,spec,cancel=None):
+    """Forward/backward Butterworth, with combined -3 dB edges in Hz.
 
-    Finite runs are independent: gaps and source boundaries are never bridged.
+    The prototype is order 4 (bandpass becomes order 8 per direction).
+    Gaps and source boundaries are filtered as independent finite runs.
     """
-    if not math.isfinite(rate) or not 0<cutoff<rate/2:
+    mode,lower,upper=spec
+    if mode not in ('Low pass','High pass','Band pass'):
+        raise ValueError('Desteklenmeyen filtre türü.')
+    if not math.isfinite(rate) or not math.isfinite(lower) or not 0<lower<rate/2:
         raise ValueError('Kesim frekansı pozitif ve örnekleme hızının yarısından küçük olmalı.')
-    # Compensate for squared magnitude in the forward/backward fourth-order filter.
-    critical=rate/np.pi*np.arctan(np.tan(np.pi*cutoff/rate)/(np.sqrt(2)-1)**(1/8))
-    sos=butter(4,critical,fs=rate,output='sos')
+    factor=(np.sqrt(2)-1)**(1/8)
+    warped=np.tan(np.pi*lower/rate)
+    if mode=='Band pass':
+        if upper is None or not math.isfinite(upper) or not lower<upper<rate/2:
+            raise ValueError('Bant sınırları 0 < alt < üst < örnekleme hızı / 2 olmalı.')
+        high=np.tan(np.pi*upper/rate)
+        # Enlarge the analog bandwidth, preserving the warped center frequency.
+        # The two-pass gain at each user-entered edge is then 1/sqrt(2).
+        bandwidth=(high-warped)/factor;product=warped*high
+        critical_high=(np.hypot(bandwidth,2*np.sqrt(product))+bandwidth)/2
+        critical_low=product/critical_high
+        critical=rate/np.pi*np.arctan([critical_low,critical_high]);kind='bandpass'
+    else:
+        critical=rate/np.pi*np.arctan(warped/factor if mode=='Low pass' else warped*factor)
+        kind='lowpass' if mode=='Low pass' else 'highpass'
+    sos=butter(4,critical,btype=kind,fs=rate,output='sos')
     result=np.array(values,dtype=float,copy=True)
     finite=np.isfinite(result)
     boundaries=np.flatnonzero(np.diff(finite,prepend=False,append=False))
     for start,stop in boundaries.reshape(-1,2):
-        check_cancel(cancel)
-        count=stop-start
+        check_cancel(cancel);count=stop-start
         if count<3:continue
-        filtered=sosfiltfilt(sos,result[start:stop],padlen=min(15,count-2))
+        filtered=sosfiltfilt(sos,result[start:stop],padlen=min(3*(2*len(sos)+1),count-2))
         check_cancel(cancel)
         if not np.all(np.isfinite(filtered)):
-            raise ValueError('Bu kesim frekansında sayısal olarak kararlı filtre üretilemedi; daha yüksek bir değer girin.')
+            raise ValueError('Bu sınırlarda sayısal olarak kararlı filtre üretilemedi; kesim frekanslarını değiştirin.')
         result[start:stop]=filtered
-    check_cancel(cancel)
-    result.flags.writeable=False
+    check_cancel(cancel);result.flags.writeable=False
     return result
+
+def filter_description(spec):
+    mode,lower,upper=spec
+    return f'{mode} · {lower:g}–{upper:g} Hz' if mode=='Band pass' else f'{mode} · {lower:g} Hz'
 
 
 def prepare_dataset(d,progress=None,cancel=None):
@@ -458,7 +477,7 @@ class TraceDock(tk.Tk):
       with Image.open(icon_path) as icon:
         self._window_icons={size[0]:ImageTk.PhotoImage(icon.ico.getimage(size),master=self) for size in sorted(icon.ico.sizes())}
       self.iconbitmap(default=str(icon_path));self.iconphoto(True,*self._window_icons.values())
-    self.filtered_view=tk.BooleanVar(value=False);self.filter_cutoff=tk.StringVar(value='10');self._active_cutoff=10.0
+    self.filtered_view=tk.BooleanVar(value=False);self.filter_cutoff=tk.StringVar(value='10');self.filter_upper=tk.StringVar(value='25');self.filter_type=tk.StringVar(value='Low pass');self._active_filter=('Low pass',10.0,None)
     self._style(); self._build(); self.load_default_config(); self.redraw_all()
     watch_window_dpi(self)
     self.bind('<<DisplayScaleChanged>>',self._display_scale_changed,add='+')
@@ -514,8 +533,10 @@ class TraceDock(tk.Tk):
       self._button(exports,label,command).pack(side='left',padx=(0,6))
     filter_controls=bar
     self._filter_toggle=ttk.Checkbutton(filter_controls,text='Filtreli görünüm',variable=self.filtered_view,command=self._toggle_filtered_view);self._filter_toggle.pack(side='left',padx=(0,8))
-    ttk.Label(filter_controls,text='Kesim (Hz)').pack(side='left',padx=(4,3))
+    self._filter_kind=AdaptiveCombobox(filter_controls,textvariable=self.filter_type,state='readonly',width=10,values=['Low pass','High pass','Band pass']);self._filter_kind.pack(side='left',padx=3);self._filter_kind.bind('<<ComboboxSelected>>',self._update_filter_fields)
+    self._filter_cutoff_label=ttk.Label(filter_controls,text='Kesim (Hz)');self._filter_cutoff_label.pack(side='left',padx=(4,3))
     self._filter_entry=ttk.Entry(filter_controls,textvariable=self.filter_cutoff,width=8);self._filter_entry.pack(side='left',padx=3);self._filter_entry.bind('<Return>',lambda e:self._apply_filter_frequency())
+    self._filter_upper_label=ttk.Label(filter_controls,text='Üst (Hz)');self._filter_upper_entry=ttk.Entry(filter_controls,textvariable=self.filter_upper,width=8);self._filter_upper_entry.bind('<Return>',lambda e:self._apply_filter_frequency())
     self._filter_apply=self._button(filter_controls,'Uygula',self._apply_filter_frequency);self._filter_apply.pack(side='left',padx=3)
 
     self.coords=tk.StringVar(value='X = —    Y = —');bar3=self._control_row(toolbar,fill='x',pady=(3,0));self._button(bar3,'Y eksenleri',self._show_y_axes).pack(side='right',padx=(6,0));ttk.Checkbutton(bar3,text='Lejantı göster',variable=self.legend_visible,command=self._toggle_legend).pack(side='right',padx=(8,0));tk.Label(bar3,text='Sol tık: prob ekle/sil • Sağ tık: prob etiketi • Sol sürükle: aralık • Sağ sürükle: kaydır • Tekerlek / orta tuş: zoom',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=2)
@@ -890,7 +911,7 @@ class TraceDock(tk.Tk):
       except queue.Empty:break
       if kind=='progress':self._job_progress['value']=payload[0]*100;self.status.set(job['title']+' • '+payload[1]);continue
       self._job=None;self._job_bar.pack_forget()
-      self._filter_toggle.configure(state='normal');self._filter_entry.configure(state='normal');self._filter_apply.configure(state='normal')
+      self._filter_toggle.configure(state='normal');self._filter_entry.configure(state='normal');self._filter_upper_entry.configure(state='normal');self._filter_kind.configure(state='readonly');self._filter_apply.configure(state='normal')
       if kind=='done':job['success'](payload)
       elif kind=='cancelled':self.status.set('İşlem iptal edildi')
       else:
@@ -943,46 +964,55 @@ class TraceDock(tk.Tk):
         if (factor==1 and current is values) or (isinstance(current,ScaledValues) and current.base is values and current.factor==factor):continue
         d['channels'][name]=values if factor==1 else ScaledValues(values,factor)
 
- def _filter_cache_ready(self,cutoff=None):
-    cutoff=self._active_cutoff if cutoff is None else cutoff
+ def _update_filter_fields(self,event=None):
+    band=self.filter_type.get()=='Band pass'
+    self._filter_cutoff_label.configure(text='Alt (Hz)' if band else 'Kesim (Hz)')
+    if band:
+      self._filter_upper_label.pack(side='left',before=self._filter_apply,padx=(4,3));self._filter_upper_entry.pack(side='left',before=self._filter_apply,padx=3)
+    else:
+      self._filter_upper_label.pack_forget();self._filter_upper_entry.pack_forget()
+ def _filter_cache_ready(self,spec=None):
+    spec=self._active_filter if spec is None else spec
     for d in self.datasets:
       for name,raw in d['_base_channels'].items():
         cached=d.get('_smoothed',{}).get(name,{})
-        if cached.get('source') is not raw or cached.get('rate')!=d['channel_rates'][name] or cached.get('cutoff')!=cutoff:return False
+        if cached.get('source') is not raw or cached.get('rate')!=d['channel_rates'][name] or cached.get('spec')!=spec:return False
     return True
  def _filter_status(self):
-    return f'Filtreli görünüm • düşük geçiren {self._active_cutoff:g} Hz • prob, istatistik ve CSV filtreli; ham kaynak korunur'
+    return f'Filtreli görünüm • {filter_description(self._active_filter)} • prob, istatistik ve CSV filtreli; ham kaynak korunur'
  def _toggle_filtered_view(self):
     if not self.filtered_view.get():
       self.redraw_all(preserve_view=True);self.status.set('Ham görünüm • grafik, prob, istatistik ve CSV ham değerleri kullanır');return
-    self.filtered_view.set(False)
-    self._apply_filter_frequency()
+    self.filtered_view.set(False);self._apply_filter_frequency()
  def _apply_filter_frequency(self):
     if self._job is not None:return
     if not self.datasets:self.status.set('Filtre için önce bir veri dosyası ekleyin');return
     try:
-      cutoff=float(self.filter_cutoff.get().strip().replace(',','.'))
-      if not math.isfinite(cutoff) or cutoff<=0:raise ValueError()
+      mode=self.filter_type.get();lower=float(self.filter_cutoff.get().strip().replace(',','.'))
+      upper=float(self.filter_upper.get().strip().replace(',','.')) if mode=='Band pass' else None
+      if mode not in ('Low pass','High pass','Band pass') or not math.isfinite(lower) or lower<=0:raise ValueError()
+      if upper is not None and (not math.isfinite(upper) or upper<=lower):raise ValueError()
     except ValueError:
-      messagebox.showerror('Kesim frekansı','Hz cinsinden sıfırdan büyük bir sayı girin (ör. 10 veya 12,5).',parent=self);return
+      messagebox.showerror('Filtre frekansları','Pozitif, sonlu frekanslar girin (ör. 12,5). Band pass için alt sınır üst sınırdan küçük olmalı.',parent=self);return
+    spec=(mode,lower,upper);highest=upper if upper is not None else lower
     channels=[(d,name,raw,float(d['channel_rates'][name])) for d in self.datasets for name,raw in d['_base_channels'].items()]
-    invalid=[(d,name,rate) for d,name,raw,rate in channels if not math.isfinite(rate) or cutoff>=rate/2]
+    invalid=[(d,name,rate) for d,name,raw,rate in channels if not math.isfinite(rate) or highest>=rate/2]
     if invalid:
       d,name,rate=min(invalid,key=lambda item:item[2])
-      messagebox.showerror('Kesim frekansı',f"{d['name']} / {name}: örnekleme hızı {rate:g} Hz.\nKesim frekansı {rate/2:g} Hz değerinden küçük olmalı. Kaynakların hızları değiştirilmez.",parent=self);return
-    if self._filter_cache_ready(cutoff):
-      self._active_cutoff=cutoff;self.filtered_view.set(True);self.redraw_all(preserve_view=True);self.status.set(self._filter_status());return
+      messagebox.showerror('Filtre frekansları',f"{d['name']} / {name}: örnekleme hızı {rate:g} Hz.\nKesim frekansları {rate/2:g} Hz değerinden küçük olmalı. Kaynakların hızları değiştirilmez.",parent=self);return
+    if self._filter_cache_ready(spec):
+      self._active_filter=spec;self.filtered_view.set(True);self.redraw_all(preserve_view=True);self.status.set(self._filter_status());return
     pending=[]
     for d,name,raw,rate in channels:
       cached=d.get('_smoothed',{}).get(name,{})
-      if cached.get('source') is not raw or cached.get('rate')!=rate or cached.get('cutoff')!=cutoff:pending.append((raw,rate))
+      if cached.get('source') is not raw or cached.get('rate')!=rate or cached.get('spec')!=spec:pending.append((raw,rate))
     def work(progress,cancel):
       prepared={}
       for i,(raw,rate) in enumerate(pending):
         check_cancel(cancel);key=(id(raw),rate)
         if key not in prepared:
-          values=lowpass_filter(raw,rate,cutoff,cancel);stats,levels=build_channel_cache(values,cancel)
-          prepared[key]={'source':raw,'rate':rate,'cutoff':cutoff,'values':values,'stats':stats,'levels':levels}
+          values=frequency_filter(raw,rate,spec,cancel);stats,levels=build_channel_cache(values,cancel)
+          prepared[key]={'source':raw,'rate':rate,'spec':spec,'values':values,'stats':stats,'levels':levels}
         progress((i+1)/len(pending),f'{i+1}/{len(pending)} kanal hazırlandı')
       return prepared
     def complete(prepared):
@@ -990,11 +1020,11 @@ class TraceDock(tk.Tk):
         for name,raw in d['_base_channels'].items():
           key=(id(raw),float(d['channel_rates'][name]))
           if key in prepared:d.setdefault('_smoothed',{})[name]=prepared[key]
-      if not self._filter_cache_ready(cutoff):
+      if not self._filter_cache_ready(spec):
         self.filtered_view.set(False);self.redraw_all(preserve_view=True);self.status.set('Veri listesi veya Hz değişti; filtreyi yeniden uygulayın.');return
-      self._active_cutoff=cutoff;self.filtered_view.set(True);self.redraw_all(preserve_view=True);self.status.set(self._filter_status())
-    self._filter_toggle.configure(state='disabled');self._filter_entry.configure(state='disabled');self._filter_apply.configure(state='disabled')
-    self._start_job(f'Filtre hazırlanıyor ({cutoff:g} Hz)',work,complete)
+      self._active_filter=spec;self.filtered_view.set(True);self.redraw_all(preserve_view=True);self.status.set(self._filter_status())
+    self._filter_toggle.configure(state='disabled');self._filter_entry.configure(state='disabled');self._filter_upper_entry.configure(state='disabled');self._filter_kind.configure(state='disabled');self._filter_apply.configure(state='disabled')
+    self._start_job('Filtre hazırlanıyor ('+filter_description(spec)+')',work,complete)
 
  def _tdms_settings(self,channels):
     win=tk.Toplevel(self);win.title('TDMS kanal hızları ve çarpanları');size_dialog(win,self,860,600);win.transient(self);win.grab_set();win.configure(bg='#f4f8fb')
@@ -1352,7 +1382,7 @@ class TraceDock(tk.Tk):
         if track not in tracks and len(tracks)>=limit:continue
         base=d['_base_channels'][name];levels=d['_envelopes'][name];stats=d['_base_stats'][name];suffix=''
         if self.filtered_view.get():
-          cached=d['_smoothed'][name];base=cached['values'];levels=cached['levels'];stats=cached['stats'];factor=float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1));y=base if factor==1 else ScaledValues(base,factor);suffix=f' [filtreli: {self._active_cutoff:g} Hz]'
+          cached=d['_smoothed'][name];base=cached['values'];levels=cached['levels'];stats=cached['stats'];factor=float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1));y=base if factor==1 else ScaledValues(base,factor);suffix=f' [filtreli: {filter_description(self._active_filter)}]'
         unit=str(clip.get('unit_override',d.get('units',{}).get(name,''))).strip();suffix=((' ['+unit+']') if unit else '')+suffix
         tracks.add(track);clock=SampleTimeAxis(len(y),d['channel_rates'][name],origin=start);channel_label=f'Seçili kanal {selected_column} / {name}' if policy=='Seçili kanal sırasına göre' else f'Sütun {column+1} / {name}' if policy=='Sütun sırasına göre' else name if policy=='Kanal adına göre' else f"{d['name']} / {name} [Paket {ci+1}]"
         series.append({'key':key,'name':name,'dataset':d,'unit':unit,'label':f"{row['name']} / {d['name']} / {name} [Paket {ci+1}]"+suffix,'x':clock,'time':clock,'y':y,'base_values':base,'envelopes':levels,'stats':stats,'track':track,'track_label':f"{row['name']} / {channel_label}"+suffix,'row_uid':row_uid,'clip_index':ci,'clip_start':start,'clip_end':end})
@@ -1516,7 +1546,7 @@ class TraceDock(tk.Tk):
     self._background=None;self.ax.clear();self._guide_artists=[];self._line_data={};self._series_map={};self._legend_artist=None;self._legend_targets=[];self.ax.set_facecolor('#ffffff');self.ax.set_axisbelow(True);self.ax.tick_params(colors='#40596f')
     for spine in self.ax.spines.values():spine.set_color('#cbdbe7');spine.set_visible(True)
     self.ax.tick_params(axis='y',left=True,labelleft=True);series=self._plot_series();self._configure_y_axes(series);elapsed=self.xcombo.get()=='Geçen süre';budget=max(256,min(4000,60000//max(1,len(series))))
-    if self.filtered_view.get():self.ax.text(.99,.985,f'Filtreli görünüm · {self._active_cutoff:g} Hz',transform=self.ax.transAxes,ha='right',va='top',fontsize=8,color='#7261c4',bbox=dict(facecolor='#ffffff',edgecolor='#cbdbe7',alpha=.9),zorder=25)
+    if self.filtered_view.get():self.ax.text(.99,.985,f'Filtreli görünüm · {filter_description(self._active_filter)}',transform=self.ax.transAxes,ha='right',va='top',fontsize=8,color='#7261c4',bbox=dict(facecolor='#ffffff',edgecolor='#cbdbe7',alpha=.9),zorder=25)
     if not series:
       self.ax.set_xlim(*(view[0] if view else (0,max(self._timeline_duration(),1e-9) if self.timeline else 1)));self.ax.set_ylim(*(view[1].get('L1',(0,1)) if view else (0,1)));self.ax.text(.5,.5,('Görünür veri yok. Zaman çizelgesinde sağ tık ile Göster seçin.' if self.timeline else 'Grafik için Dosya/Kanal sütununa sağ tıklayıp zaman çizelgesine ekleyin'),color='#40596f',ha='center',va='center',transform=self.ax.transAxes);self.span_artist=None;self.cursor_x=None;self.cursor_y=None;self._reset_axis_slots.clear();self._draw_guides();self.canvas.draw_idle();self._update_tables();return
     track_colors={};previous_tracks={};legend_entries=[]
