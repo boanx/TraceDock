@@ -295,3 +295,7 @@ Grafik altındaki fare okuması artık sol/sağ Y ekseninin fare yüksekliğinde
 Değer imleç zamanında veya ondan önceki en son gerçek örnektir; araya yeni/interpole değer üretilmez. Her kanal kendi Hz ve paket konumunu kullanır. Etkin ham/filtreli veri, çarpan ve birim dikkate alınır. Paket boşluğu, kanalın dışında kalan zaman veya eksik ölçüm “—” ile gösterilir; eski paketin son değeri boşluğa taşınmaz. Kaydırma sırasında okuma ve çapraz imleç yeni görünümdeki aynı zamanı kullanır.
 
 Paket başlangıçlarına göre küçük bir arama indeksi hazırlanır; her fare hareketinde büyük ölçüm dizileri kopyalanmaz. Filtre, isim veya görünürlük değişiminde okuma yenilenir. CSV aktarımındaki ortak Hz/örnek tekrarı kuralları değişmez. Arayüz işlev testi çalıştırılmadı.
+
+## Prob limiti (v1.0.33)
+
+Her paket/kanal için prob üst sınırı 5’ten 20’ye çıkarıldı. P1–P20 etiketleri, prob tablosu ve mevcut ekle/sil işlemleri aynı şekilde kullanılır. Arayüz işlev testi çalıştırılmadı.

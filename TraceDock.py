@@ -31,7 +31,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.32'
+APP_VERSION='1.0.33'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -1982,7 +1982,7 @@ class TraceDock(tk.Tk):
         if best is None or dist<best[0]:best=(dist,name,idx)
     if best:
       n=best[1];items=self.probes.setdefault(n,[])
-      if len(items)>=5:self.status.set(f'{self._key_label(n)} için en fazla 5 probe eklenebilir.');return
+      if len(items)>=20:self.status.set(f'{self._key_label(n)} için en fazla 20 probe eklenebilir.');return
       items.append({'index':best[2],'label':True});self.status.set(f'{self._key_label(n)} kanalına P{len(items)} probe eklendi');self.redraw(preserve_view=True);return
     if self.span is not None:self.clear_span()
  def _nearest_probe(self,e,threshold=13):
