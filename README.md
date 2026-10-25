@@ -299,3 +299,8 @@ Paket başlangıçlarına göre küçük bir arama indeksi hazırlanır; her far
 ## Prob limiti (v1.0.33)
 
 Her paket/kanal için prob üst sınırı 5’ten 20’ye çıkarıldı. P1–P20 etiketleri, prob tablosu ve mevcut ekle/sil işlemleri aynı şekilde kullanılır. Arayüz işlev testi çalıştırılmadı.
+
+
+## Sekme görünümü (v1.0.34)
+Kanal istatistikleri ve Problar sekmelerinin seçime bağlı boyut farkı giderildi. Seçili sekme turkuaz zemin ve kenarlıkla vurgulanır; yazı ve iç boşluk ölçüleri tüm durumlarda aynı kalır.
+Arayüz işlev testi çalıştırılmadı.

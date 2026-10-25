@@ -31,7 +31,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.33'
+APP_VERSION='1.0.34'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -583,7 +583,7 @@ class TraceDock(tk.Tk):
     style.configure('Treeview.Heading',font=bold,padding=(p(8),p(7)))
     style.configure('TCombobox',font=font,padding=(p(5),p(4)))
     style.configure('TEntry',font=font,padding=p(5))
-    style.configure('TNotebook.Tab',font=font,padding=(p(15),p(7)))
+    style.configure('TNotebook.Tab',font=font,padding=(p(15),p(7)),expand=(0,0,0,0))
     for name in ('Vertical.TScrollbar','Horizontal.TScrollbar'):style.configure(name,arrowsize=p(12))
     # An embedded TkAgg canvas has no FigureManager to handle monitor changes.
     # Let the backend update its own ratio instead of multiplying figure DPI.
@@ -593,7 +593,10 @@ class TraceDock(tk.Tk):
     style.configure('Treeview',background='#ffffff',foreground='#203449',fieldbackground='#ffffff',rowheight=28,bordercolor='#d9e4ed',relief='flat');style.configure('Treeview.Heading',background='#eaf2f8',foreground='#405d75',font=ui_font(self,9,'bold'),padding=(8,7),relief='flat');style.map('Treeview',background=[('selected','#d7efee')],foreground=[('selected','#164e58')]);style.map('Treeview.Heading',background=[('active','#dceef2')])
     style.configure('TCombobox',fieldbackground='#ffffff',background='#eaf2f8',foreground='#203449',selectbackground='#d7efee',selectforeground='#203449',arrowcolor='#60758a',borderwidth=1,padding=5);style.map('TCombobox',fieldbackground=[('readonly','#ffffff')],foreground=[('readonly','#203449')],selectbackground=[('readonly','#ffffff')],selectforeground=[('readonly','#203449')])
     style.configure('TEntry',fieldbackground='#ffffff',foreground='#203449',insertcolor='#203449',padding=5,borderwidth=1);style.map('TEntry',bordercolor=[('focus','#55aeb1')])
-    style.configure('TNotebook',background='#f4f8fb',bordercolor='#d9e4ed',tabmargins=(4,3,4,0));style.configure('TNotebook.Tab',background='#eaf2f8',foreground='#60758a',padding=(15,7));style.map('TNotebook.Tab',background=[('selected','#ffffff'),('active','#e1f1f3')],foreground=[('selected','#007f85')])
+    style.configure('TNotebook',background='#f4f8fb',bordercolor='#d9e4ed',tabmargins=(4,3,4,0));style.configure('TNotebook.Tab',background='#eaf2f8',foreground='#60758a',padding=(15,7))
+    # Clear clam's selected padding/font overrides so every tab shares DPI-aware metrics.
+    style.map('TNotebook.Tab',padding=[],font=[],expand=[],background=[('selected','#d7efee'),('active','#e1f1f3')],foreground=[('selected','#007f85')],bordercolor=[('selected','#007f85')],lightcolor=[('selected','#007f85')],darkcolor=[('selected','#007f85')])
+    style.configure('TNotebook.Tab',font=ui_font(self,9),expand=(0,0,0,0))
     for name in ('Vertical.TScrollbar','Horizontal.TScrollbar'):style.configure(name,background='#c3d6e3',troughcolor='#edf3f8',bordercolor='#edf3f8',arrowcolor='#60758a',arrowsize=12,relief='flat');style.map(name,background=[('active','#91b8ca')])
     style.configure('Horizontal.TProgressbar',background='#54adb4',troughcolor='#e4edf4',bordercolor='#e4edf4',lightcolor='#8fd1d0',darkcolor='#54adb4')
     for pattern,value in (('*TCombobox*Listbox.background','#ffffff'),('*TCombobox*Listbox.foreground','#203449'),('*TCombobox*Listbox.selectBackground','#d7efee'),('*TCombobox*Listbox.selectForeground','#203449'),('*Entry.background','#ffffff'),('*Entry.foreground','#203449'),('*Entry.insertBackground','#203449')):self.option_add(pattern,value)
