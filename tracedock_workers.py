@@ -86,7 +86,10 @@ def inspect_text(path,kind='csv'):
     header=[v.strip() or f'Kanal {i+1}' for i,v in enumerate(header)];seen={}
     for i,name in enumerate(header):seen[name]=seen.get(name,0)+1;header[i]=name if seen[name]==1 else f'{name} ({seen[name]})'
     time_index=next((i for i,v in enumerate(header) if normalize(v) in TIME_NAMES),None) if has_header else None
-    value_indices=[i for i in range(len(header)) if i!=time_index]
+    export_times={normalize(value):i for i,value in enumerate(header)}
+    paired_export='time' in export_times and 'times' in export_times
+    if paired_export:time_index=export_times['times']
+    value_indices=[i for i in range(len(header)) if i!=time_index and not (paired_export and i==export_times['time'])]
     if not value_indices:raise ValueError('Zaman sütunu dışında ölçüm kanalı bulunamadı.')
     # TextIO.tell at a complete logical record gives an encoding-safe offset.
     with open(path,encoding=encoding,newline='') as f:
@@ -137,16 +140,18 @@ def parse_file_block(path,start,end,layout):
     with open(path,'rb') as f:f.seek(start);raw=f.read(end-start)
     return (*parse_records(raw.decode(layout['encoding']),layout),os.getpid())
 
-def format_export_block(chunks,shared,decimal,elapsed):
+def format_export_block(chunks,shared,decimal,elapsed,uniform=False):
     def fmt(v):
         if not np.isfinite(v):return ''
-        value=f'{v:.10g}';return value.replace('.',',') if decimal==',' else value
+        value=format(float(v),'.17g' if uniform else '.10g');return value.replace('.',',') if decimal==',' else value
     def clock(v):
         if not elapsed:return fmt(v)
         sign='-' if v<0 else '';total,frac=divmod(int(round(abs(float(v))*10000)),10000);hours,rem=divmod(total,3600);minutes,seconds=divmod(rem,60)
         return f'{sign}{hours:02d}:{minutes:02d}:{seconds:02d}.{frac:04d}'
     length=max((len(x) for x,y in chunks),default=0);output=io.StringIO(newline='');writer=csv.writer(output,delimiter=';' if decimal==',' else ',')
     for row in range(length):
-        if shared:writer.writerow([clock(chunks[0][0][row])]+[fmt(y[row]) for x,y in chunks])
+        if shared:
+            stamp=chunks[0][0][row];time_values=[clock(stamp),fmt(stamp)] if uniform and elapsed else [clock(stamp)]
+            writer.writerow(time_values+[fmt(y[row]) for x,y in chunks])
         else:writer.writerow([v for x,y in chunks for v in ([clock(x[row]),fmt(y[row])] if row<len(x) else ['',''])])
     return output.getvalue()

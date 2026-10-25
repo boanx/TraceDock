@@ -1,6 +1,6 @@
 import multiprocessing
 if __name__=='__main__':multiprocessing.freeze_support()
-import csv, json, math, os, sys, traceback, uuid, threading, queue, time, tempfile, warnings
+import csv, json, math, os, sys, traceback, uuid, threading, queue, time, tempfile, warnings, hashlib
 from array import array
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
@@ -138,47 +138,85 @@ class ScaledValues(NumericView):
         return values.astype(dtype,copy=False) if dtype is not None else values
     def __getitem__(self,key):return self.base[key]*self.factor
 
-class ConstantValues(NumericView):
-    """Represent an export gap without allocating a potentially huge zero array."""
-    def __init__(self,count,value=0.):self.count=int(count);self.value=float(value)
-    def __len__(self):return self.count
-    def __array__(self,dtype=None,copy=None):return np.full(self.count,self.value,dtype=dtype or float)
+def export_grid_index(seconds,rate):
+    scaled=float(seconds)*rate
+    if not math.isfinite(scaled) or abs(scaled)>np.iinfo(np.int64).max:
+        raise ValueError('CSV zaman dizisi fazla büyük.')
+    return int(math.ceil(scaled-max(1e-9,4*math.ulp(scaled))))
+
+class HeldChannelValues(NumericView):
+    """Sample-and-hold at common CSV times; gaps remain zero, not held across."""
+    def __init__(self,clock,segments):
+        self.clock=clock;self.segments=segments
+    def __len__(self):return len(self.clock)
+    def __array__(self,dtype=None,copy=None):
+        values=self[:]
+        return values.astype(dtype,copy=False) if dtype is not None else values
     def __getitem__(self,key):
-        if isinstance(key,slice):return type(self)(len(range(*key.indices(self.count))),self.value)
-        if np.isscalar(key):
-            index=int(key);index=index+self.count if index<0 else index
-            if not 0<=index<self.count:raise IndexError(index)
-            return self.value
-        indices=np.asarray(key)
-        if indices.dtype==bool:indices=np.flatnonzero(indices)
-        if np.any((indices>=self.count)|(indices< -self.count)):raise IndexError('sample index')
-        return np.full(indices.shape,self.value)
+        scalar=np.isscalar(key)
+        if isinstance(key,slice):indices=np.arange(*key.indices(len(self)),dtype=np.int64)
+        elif scalar:
+            index=int(key);index=index+len(self) if index<0 else index;indices=np.asarray([index],dtype=np.int64)
+        else:
+            indices=np.asarray(key)
+            if indices.dtype==bool:indices=np.flatnonzero(indices)
+            indices=np.where(indices<0,indices+len(self),indices).astype(np.int64)
+        if np.any((indices<0)|(indices>=len(self))):raise IndexError('CSV sample index')
+        result=np.zeros(indices.shape,dtype=float)
+        for first,stop,start,rate,values in self.segments:
+            mask=(indices>=first)&(indices<stop)
+            if not np.any(mask):continue
+            position=(indices[mask]/self.clock.rate-start)*rate
+            # Treat only floating point roundoff near a true sample boundary as
+            # equality. Other times keep the preceding acquired sample exactly.
+            tolerance=np.maximum(1e-9,4*np.abs(np.spacing(position)))
+            source=np.clip(np.floor(position+tolerance).astype(np.int64),0,len(values)-1)
+            result[mask]=values[source]
+        return float(result[0]) if scalar else result
 
 def channel_export_series(groups,duration,cancel=None):
-    """Join each channel's packets and fill uncovered time at native cadence."""
-    prepared=[]
+    """One shared maximum-Hz clock; all channel values use zero-order hold."""
+    rates=[entry['x'].rate for group in groups for entry in group['segments'] if len(entry['x'])]
+    if not rates:raise ValueError('Aktarılacak kanal örneği yok.')
+    rate=max(rates)
+    if not math.isfinite(rate) or rate<=0:raise ValueError('CSV örnekleme hızı geçersiz.')
+    count=max(0,export_grid_index(duration,rate));clock=SampleTimeAxis(count,rate);prepared=[]
     for group in groups:
-        check_cancel(cancel)
-        segments=sorted((entry for entry in group['segments'] if len(entry['x'])),key=lambda entry:entry['x'][0])
-        if not segments:continue
-        times=[];values=[];cursor=0.;rate=segments[0]['x'].rate
-        def gap(start,end,hz):
-            if end-start<=max(1e-9,4*max(math.ulp(start),math.ulp(end))):return
-            steps=(end-start)*hz
-            if not math.isfinite(steps) or steps>np.iinfo(np.int64).max:raise ValueError('Zaman boşluğu CSV için fazla büyük.')
-            count=max(1,int(math.ceil(steps-max(1e-9,4*math.ulp(steps)))))
-            axis=SampleTimeAxis(count,hz,origin=start)
-            while count and axis[count-1]>=end:count-=1
-            if count:times.append(SampleTimeAxis(count,hz,origin=start));values.append(ConstantValues(count))
-        for entry in segments:
-            check_cancel(cancel);axis=entry['x'];start=float(axis[0]);end=float(axis[-1])+1/axis.rate
-            tolerance=max(1e-9,4*max(math.ulp(cursor),math.ulp(start)))
-            if start<cursor-tolerance:raise ValueError('Aynı kanalın paketleri zaman çizelgesinde çakışıyor: '+group['label'])
-            gap(cursor,start,rate);times.append(axis);values.append(entry['y']);cursor=end;rate=axis.rate
-        gap(cursor,duration,rate)
-        if sum(len(axis) for axis in times)>np.iinfo(np.int64).max:raise ValueError('CSV zaman dizisi fazla büyük.')
-        prepared.append({'label':group['label'],'x':JoinedTimeAxis(times),'y':JoinedValues(values)})
-    return prepared
+        check_cancel(cancel);parts=[];cursor=None
+        for entry in sorted((item for item in group['segments'] if len(item['x'])),key=lambda item:item['x'][0]):
+            check_cancel(cancel);axis=entry['x'];start=float(axis[0]);end=start+len(axis)/axis.rate
+            tolerance=max(1e-9,4*max(math.ulp(start),math.ulp(cursor or 0.)))
+            if cursor is not None and start<cursor-tolerance:
+                raise ValueError('Aynı kanalın paketleri zaman çizelgesinde çakışıyor: '+group['label'])
+            first=max(0,export_grid_index(start,rate));stop=min(count,export_grid_index(end,rate))
+            if stop>first:parts.append((first,stop,start,axis.rate,entry['y']))
+            cursor=end
+        prepared.append({'label':group['label'],'x':clock,'y':HeldChannelValues(clock,parts)})
+    return prepared,rate
+
+def write_csv_export_record(path,groups,rate,lo,hi,count,cancel=None):
+    """Record CSV processing parameters without changing its tabular structure."""
+    digest=hashlib.sha256()
+    with open(path,'rb') as source:
+        while block:=source.read(1024*1024):check_cancel(cancel);digest.update(block)
+    channels=[]
+    for group in groups:
+        packets=[]
+        for entry in group['segments']:
+            axis=entry['x'];d=entry['dataset'];name=entry['name']
+            if not len(axis):continue
+            packets.append({'source_file':Path(d.get('path',d['name'])).name,'source_channel':name,'source_hz':axis.rate,'sample_count':len(axis),'start_s':float(axis[0]),'end_exclusive_s':float(axis[0])+len(axis)/axis.rate,'unit':entry.get('unit',''),'multiplier':float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1)),'filtered':entry.get('filter_spec')})
+        channels.append({'column':group['label'],'packets':packets})
+    record={'application':'TraceDock','version':'1.0.29','csv_file':Path(path).name,'csv_sha256':digest.hexdigest(),'export_hz':rate,'time_grid_origin_s':0.,'range_s':[lo,hi],'rows':count,'resampling':'zero_order_hold_previous_sample','gap_value':0,'numeric_time_column':'time_s','display_time_column':'time','channels':channels}
+    temporary=None
+    try:
+        with tempfile.NamedTemporaryFile('w',encoding='utf-8',dir=str(Path(path).parent),prefix='.tracedock-info-',suffix='.tmp',delete=False) as output:
+            temporary=output.name;json.dump(record,output,ensure_ascii=False,indent=2,allow_nan=False)
+        check_cancel(cancel);os.replace(temporary,str(path)+'.metadata.json');temporary=None
+    finally:
+        if temporary:
+            try:os.unlink(temporary)
+            except OSError:pass
 
 class ReferenceXAxis(NumericView):
     """Evaluate a chosen X channel only at the points actually needed for display/export."""
@@ -464,7 +502,7 @@ def number_text(value,decimal='.'):
     if not np.isfinite(value):return ''
     value=f'{value:.10g}';return value.replace('.',',') if decimal==',' else value
 
-def write_series_csv(path,series,lo,hi,decimal='.',elapsed=True,progress=None,cancel=None,metadata=None):
+def write_series_csv(path,series,lo,hi,decimal='.',elapsed=True,progress=None,cancel=None,metadata=None,uniform=False):
     filtered=[(entry,range_selection(entry['x'],lo,hi,elapsed)) for entry in series];counts=[selection_count(entry['x'],sel) for entry,sel in filtered];count=max(counts,default=0)
     if not count:raise ValueError('Seçilen aralıkta örnek bulunamadı.')
     shared=all(n==counts[0] for n in counts)
@@ -482,13 +520,13 @@ def write_series_csv(path,series,lo,hi,decimal='.',elapsed=True,progress=None,ca
         if count*len(series)>=parallel_threshold and plan['workers']>1:pool=new_process_pool(plan)
         with tempfile.NamedTemporaryFile('w',encoding='utf-8-sig',newline='',dir=str(Path(path).parent),prefix='.tracedock-',suffix='.tmp',delete=False) as output:
             temporary=output.name;writer=csv.writer(output,delimiter=';' if decimal==',' else ',')
-            writer.writerow((['time' if elapsed else 'X']+[entry['label'] for entry,sel in filtered]) if shared else [text for entry,sel in filtered for text in (entry['label']+' / '+('time' if elapsed else 'X'),entry['label']+' / value')])
+            writer.writerow(((['time','time_s'] if uniform and elapsed else ['time' if elapsed else 'X'])+[entry['label'] for entry,sel in filtered]) if shared else [text for entry,sel in filtered for text in (entry['label']+' / '+('time' if elapsed else 'X'),entry['label']+' / value')])
             if metadata:writer.writerows(metadata)
             def requests():
                 for start in range(0,count,8192):
                     check_cancel(cancel);stop=min(count,start+8192)
                     chunks=[(np.asarray(selection_part(entry['x'],sel,start,stop)),np.asarray(selection_part(entry['y'],sel,start,stop))) for entry,sel in filtered]
-                    yield format_export_block,(chunks,shared,decimal,elapsed)
+                    yield format_export_block,(chunks,shared,decimal,elapsed,uniform)
             results=ordered_parallel(pool,requests(),cancel,plan['workers']*2) if pool else (fn(*args) for fn,args in requests())
             written=0
             for text in results:
@@ -1594,7 +1632,7 @@ class TraceDock(tk.Tk):
           cached=d['_smoothed'][name];base=cached['values'];levels=cached['levels'];stats=cached['stats'];factor=float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1));y=base if factor==1 else ScaledValues(base,factor);suffix=f' [filtreli: {filter_description(self._active_filter)}]'
         unit=str(clip.get('unit_override',d.get('units',{}).get(name,''))).strip();suffix=((' ['+unit+']') if unit else '')+suffix
         tracks.add(track);clock=SampleTimeAxis(len(y),d['channel_rates'][name],origin=start);channel_label=f'Seçili kanal {selected_column} / {name}' if policy=='Seçili kanal sırasına göre' else f'Sütun {column+1} / {name}' if policy=='Sütun sırasına göre' else name if policy=='Kanal adına göre' else f"{d['name']} / {name} [Paket {ci+1}]"
-        series.append({'key':key,'name':name,'dataset':d,'unit':unit,'label':f"{row['name']} / {d['name']} / {name} [Paket {ci+1}]"+suffix,'x':clock,'time':clock,'y':y,'base_values':base,'envelopes':levels,'stats':stats,'track':track,'track_label':f"{row['name']} / {channel_label}"+suffix,'row_uid':row_uid,'clip_index':ci,'channel_index':selected_column,'clip_start':start,'clip_end':end})
+        series.append({'key':key,'name':name,'dataset':d,'unit':unit,'label':f"{row['name']} / {d['name']} / {name} [Paket {ci+1}]"+suffix,'x':clock,'time':clock,'y':y,'base_values':base,'envelopes':levels,'stats':stats,'track':track,'track_label':f"{row['name']} / {channel_label}"+suffix,'row_uid':row_uid,'clip_index':ci,'channel_index':selected_column,'filter_spec':self._active_filter if self.filtered_view.get() else None,'clip_start':start,'clip_end':end})
     return series
  def _axis_slot(self,entry):
     return self._track_axes.setdefault(entry['track'],self._channel_axes.get((entry['dataset']['uid'],entry['name']),'L1'))
@@ -1969,9 +2007,13 @@ class TraceDock(tk.Tk):
     decimal=self.decimal.get();elapsed=self.xcombo.get()=='Geçen süre';duration=self._timeline_duration();lo=max(0.,lo);hi=min(duration,hi)
     def work(progress,cancel):
       if hi<lo:raise ValueError('Seçilen aralık zaman çizelgesinin dışında.')
-      channels=channel_export_series(series,duration,cancel)
-      return write_series_csv(path,channels,lo,hi,decimal,elapsed,progress,cancel)
-    self._start_job('CSV dışa aktarılıyor',work,lambda count:self.status.set(f'{count:,} satır dışa aktarıldı • {len(series)} kanal • {Path(path).name}'))
+      channels,rate=channel_export_series(series,duration,cancel)
+      count=write_series_csv(path,channels,lo,hi,decimal,elapsed,progress,cancel,uniform=True)
+      try:write_csv_export_record(path,series,rate,lo,hi,count,cancel)
+      except Cancelled:raise
+      except Exception as exc:raise ValueError('CSV yazıldı ancak işlem bilgi dosyası kaydedilemedi: '+str(exc)) from exc
+      return count,rate
+    self._start_job('CSV dışa aktarılıyor',work,lambda result:self.status.set(f'{result[0]:,} satır • {len(series)} kanal • {result[1]:g} Hz • örnek tekrarı • {Path(path).name}'))
 
  def export_graph_png(self):
     if not self._plot_series():
