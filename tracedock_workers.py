@@ -6,7 +6,7 @@ import csv,io,re,math,ctypes,codecs
 from datetime import datetime
 import numpy as np
 
-METADATA={'id','unit','rangemax','rangemin','threefactorial','twofactorial','prefixgain','prefixoffset','offset','slope','zerovalue','samplerate','multiplier','commonrate'}
+METADATA={'tracedock','id','unit','rangemax','rangemin','threefactorial','twofactorial','prefixgain','prefixoffset','offset','slope','zerovalue','samplerate','multiplier','commonrate'}
 TIME_NAMES={'datetime','timestamp','time','elapsed','elapsedtime','elapsedseconds','testtime','zaman','sure','süre','seconds','second','sec','t','times','timems','timemsec','timemilliseconds','milliseconds','ms'}
 DATE_PATTERN=re.compile(r'^(\d{1,4})[-/.](\d{1,2})[-/.](\d{1,4})[ T]+(\d{1,2}):(\d{1,2}):(\d{1,2})(?:[.,](\d+))?(.*)$')
 

@@ -288,3 +288,11 @@ Her paket/kanal için prob üst sınırı 5’ten 20’ye çıkarıldı. P1–P2
 ## Sekme görünümü (v1.0.34)
 Kanal istatistikleri ve Problar sekmelerinin seçime bağlı boyut farkı giderildi. Seçili sekme turkuaz zemin ve kenarlıkla vurgulanır; yazı ve iç boşluk ölçüleri tüm durumlarda aynı kalır.
 Arayüz işlev testi çalıştırılmadı.
+
+
+## TraceDock CSV bilgileri (v1.0.35)
+Grafik ve seçili aralık CSV aktarımları artık her sütunun zaman çizelgesi satır adını, satır grubunu, birimini ve atanan Y eksenini (Sol 1 / Sol 2 / Sağ 1 / Sağ 2) CSV içinde saklar. Dosyayı yeniden adlandırmak veya yalnızca CSV dosyasını taşımak bu bilgileri kaybettirmez.
+CSV ekle ile açıldığında birimler ve eksen atamaları otomatik yüklenir. Boş veya yeni bir zaman çizelgesi satırına eklerken kayıtlı satır adları ve grupları otomatik oluşturulur. Dolu bir satırı açıkça hedeflerseniz o satır korunur. Tümünü sırala da kayıtlı grupları kullanır. Dosyayı açmak grafiğe otomatik veri eklemez.
+Başlıktan sonraki TraceDock, Unit ve CommonRate satırları üst bilgidir; ölçüm örneği değildir. Başka uygulamalarda sayısal veri okurken bu üç satırı atlayın. CSV ayıracı ve ondalık seçimi geçerliliğini korur. Yanındaki .metadata.json işlem kaydı da üretilmeye devam eder.
+Bu bilgiler bu sürüm ve sonrası ile yeniden dışa aktarılan CSVlerde bulunur. Önceki sürümlerin kaydetmediği eksen atamaları geri getirilemez. Aktarılan dosya kanal tablosudur; özgün paket sınırlarını yeniden oluşturmaz.
+Arayüz işlev testi çalıştırılmadı.

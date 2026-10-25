@@ -31,7 +31,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.34'
+APP_VERSION='1.0.35'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -192,8 +192,18 @@ def channel_export_series(groups,duration,cancel=None):
             first=max(0,export_grid_index(start,rate));stop=min(count,export_grid_index(end,rate))
             if stop>first:parts.append((first,stop,start,axis.rate,entry['y']))
             cursor=end
-        prepared.append({'label':group['label'],'x':clock,'y':HeldChannelValues(clock,parts)})
+        prepared.append({'label':group['label'],'x':clock,'y':HeldChannelValues(clock,parts),'tracedock':group.get('tracedock',{})})
     return prepared,rate
+
+def csv_roundtrip_metadata(channels,rate,elapsed=True):
+    """Column-aligned metadata travels inside the CSV, independent of its filename."""
+    prefix=[''] if elapsed else []
+    return [
+        ['TraceDock']+prefix+[json.dumps(entry['tracedock'],ensure_ascii=False,separators=(',',':')) for entry in channels],
+        ['Unit']+prefix+[entry['tracedock'].get('unit','') for entry in channels],
+        ['CommonRate']+prefix+[format(rate,'.17g') for entry in channels],
+    ]
+
 
 def write_csv_export_record(path,groups,rate,lo,hi,count,cancel=None):
     """Record CSV processing parameters without changing its tabular structure."""
@@ -207,7 +217,7 @@ def write_csv_export_record(path,groups,rate,lo,hi,count,cancel=None):
             axis=entry['x'];d=entry['dataset'];name=entry['name']
             if not len(axis):continue
             packets.append({'source_file':Path(d.get('path',d['name'])).name,'source_channel':name,'source_hz':axis.rate,'sample_count':len(axis),'start_s':float(axis[0]),'end_exclusive_s':float(axis[0])+len(axis)/axis.rate,'unit':entry.get('unit',''),'multiplier':float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1)),'filtered':entry.get('filter_spec')})
-        channels.append({'column':group['label'],'packets':packets})
+        channels.append({'column':group['label'],**group.get('tracedock',{}),'packets':packets})
     record={'application':APP_NAME,'version':APP_VERSION,'csv_file':Path(path).name,'csv_sha256':digest.hexdigest(),'export_hz':rate,'time_grid_origin_s':0.,'range_s':[lo,hi],'rows':count,'resampling':'zero_order_hold_previous_sample','gap_value':0,'numeric_time_column':'time_s','display_time_column':'time','channels':channels}
     temporary=None
     try:
@@ -322,7 +332,18 @@ def parse_text_file(path,progress=None,cancel=None,kind='csv',pool=None,plan=Non
         if invalid_times:warning=f'{invalid_times} zaman damgası çözülemedi. Örnekler korundu; Hz veya süreyi düzenleyin.'
     else:x=np.frombuffer(clock,dtype=float)
     rate=common or ((count-1)/(x[-1]-x[0]) if count>1 and x[-1]>x[0] else 1.0)
-    return {'name':Path(path).name,'path':str(path),'source_kind':kind,'xname':layout['header'][layout['time_index']] if layout['time_index'] is not None else 'time','x':x,'x_is_date':date,'channels':parsed,'units':dict(zip(names,metadata.get('unit',['']*len(names)))),'ids':dict(zip(names,metadata.get('id',names))),'grid_rate':rate,'_base_rate':rate,'multipliers':{name:1.0 for name in parsed},'_base_x':x,'_base_channels':dict(parsed),'timing_warning':warning,'reader_workers':len(pids),'reader_pids':sorted(pids)}
+    d={'name':Path(path).name,'path':str(path),'source_kind':kind,'xname':layout['header'][layout['time_index']] if layout['time_index'] is not None else 'time','x':x,'x_is_date':date,'channels':parsed,'units':dict(zip(names,metadata.get('unit',['']*len(names)))),'ids':dict(zip(names,metadata.get('id',names))),'grid_rate':rate,'_base_rate':rate,'multipliers':{name:1.0 for name in parsed},'_base_x':x,'_base_channels':dict(parsed),'timing_warning':warning,'reader_workers':len(pids),'reader_pids':sorted(pids)}
+    restored={}
+    for name,raw in zip(names,metadata.get('tracedock',[])):
+        try:info=json.loads(raw)
+        except (ValueError,TypeError):continue
+        if not isinstance(info,dict) or info.get('schema')!=1:continue
+        if not all(isinstance(info.get(key),str) for key in ('row_id','row_name','unit','axis')):continue
+        if not info['row_id'] or not info['row_name'].strip() or info['axis'] not in Y_AXIS_LABELS:continue
+        restored[name]=info;d['units'][name]=info['unit']
+    if restored:d['_tracedock_channels']=restored;d['_selected']=set(parsed)
+    return d
+
 
 def parse_exlab(path,progress=None,cancel=None):return parse_text_file(path,progress,cancel,'csv')
 def parse_strain(path,progress=None,cancel=None,pool=None,plan=None):
@@ -895,11 +916,26 @@ class TraceDock(tk.Tk):
  def _adopt_first_packet_name(self,row,d):
     original=d.get('_original_name',Path(d.get('path',d['name'])).name)
     if d['name']!=original:row['name']=d['name']
- def _timeline_add_source(self,dataset_uid,names,row_uid=None,new_row=False):
+ def _timeline_add_source(self,dataset_uid,names,row_uid=None,new_row=False,restore=True):
     d=next((d for d in self.datasets if d['uid']==dataset_uid),None)
     if d is None:return
     names=[n for n in names if n in d['channels']]
     if not names:self.status.set('Eklemek için en az bir kanal seçin');return
+    saved=d.get('_tracedock_channels',{})
+    target=next((row for row in self.timeline_rows if row['uid']==(row_uid or self.timeline_row)),None)
+    empty=target is not None and not any(c.get('row_uid',self.timeline_rows[0]['uid'])==target['uid'] for c in self.timeline)
+    # A chosen occupied row remains an explicit destination; empty/new rows restore CSV grouping.
+    if restore and saved and all(name in saved for name in names) and (new_row or empty):
+      groups={}
+      for name in names:groups.setdefault(saved[name]['row_id'],[]).append(name)
+      for index,channels in enumerate(groups.values()):
+        row=target if index==0 and not new_row else self._new_timeline_row()
+        self._timeline_add_source(dataset_uid,channels,row['uid'],restore=False)
+        row['name']=saved[channels[0]]['row_name']
+        for entry in self._plot_series(limited=False):
+          if entry['row_uid']==row['uid'] and entry['dataset']['uid']==dataset_uid and entry['name'] in channels:
+            self._track_axes[entry['track']]=self._channel_axes.get((dataset_uid,entry['name']),saved[entry['name']]['axis'])
+      self._timeline_changed();self.status.set('CSV satır adları, kanal birimleri ve Y eksenleri yüklendi');return
     if new_row:row_uid=self._new_timeline_row()['uid']
     row=next((row for row in self.timeline_rows if row['uid']==(row_uid or self.timeline_row)),None)
     if row is None:return
@@ -911,6 +947,14 @@ class TraceDock(tk.Tk):
     clips=[{'uid':uuid.uuid4().hex,'dataset_uid':d['uid'],'row_uid':self.timeline_row,'channels':[n for n in d['channels'] if n in d['_selected']]} for d in self.datasets if d['_selected']]
     if not clips:self.status.set('Eklemek için en az bir kanal işaretleyin');return
     row=self.timeline_row;removed={'clip:'+c['uid'] for c in self.timeline if c.get('row_uid',self.timeline_rows[0]['uid'])==row};self.timeline=[c for c in self.timeline if c.get('row_uid',self.timeline_rows[0]['uid'])!=row]
+    if any(d.get('_tracedock_channels') for d in self.datasets if d['_selected']):
+      self.probes={k:v for k,v in self.probes.items() if k[0] not in removed};self._timeline_fit=True
+      for d in self.datasets:
+        names=[name for name in d['channels'] if name in d['_selected']]
+        if not names:continue
+        occupied=any(c.get('row_uid',self.timeline_rows[0]['uid'])==row for c in self.timeline)
+        self._timeline_add_source(d['uid'],names,row,new_row=bool(occupied and d.get('_tracedock_channels')))
+      self._timeline_changed();return
     first=next(d for d in self.datasets if d['uid']==clips[0]['dataset_uid']);self._adopt_first_packet_name(self._timeline_row_info(row),first)
     self.timeline.extend(clips);self.timeline_selected=clips[0]['uid'];self.probes={k:v for k,v in self.probes.items() if k[0] not in removed};self._timeline_fit=True;self._timeline_changed();self._timeline_reveal_row()
  def timeline_move(self,delta):
@@ -1142,7 +1186,7 @@ class TraceDock(tk.Tk):
         label=row+' / '+channel
         if entry.get('unit'):label+=' ['+entry['unit']+']'
         if self.filtered_view.get():label+=' [filtreli: '+filter_description(self._active_filter)+']'
-        tracks[key]={'label':label,'segments':[]}
+        tracks[key]={'label':label,'segments':[],'tracedock':{'schema':1,'row_id':entry['row_uid'],'row_name':row,'unit':entry.get('unit',''),'axis':self._axis_slot(entry)}}
       tracks[key]['segments'].append(entry)
     return list(tracks.values())
  def _panel_title(self,parent,text): tk.Label(parent,text=text,font=ui_font(self,9,'bold'),fg='#60758a',bg='#f4f8fb',anchor='w').pack(fill='x',padx=10,pady=(12,7))
@@ -1207,7 +1251,9 @@ class TraceDock(tk.Tk):
       return datasets,errors
     def complete(result):
       datasets,errors=result
-      for d in datasets:self.datasets.append(d)
+      for d in datasets:
+        self.datasets.append(d)
+        for name,info in d.get('_tracedock_channels',{}).items():self._channel_axes[(d['uid'],name)]=info['axis']
       if datasets:self.active=len(self.datasets)-1;self.selected=set(datasets[-1]['_selected'])
       self.redraw_all(preserve_view=True);self.status.set(f'{len(datasets)} dosya yüklendi • özgün veriler korundu')
       if errors:messagebox.showerror('Okunamayan dosyalar','\n'.join(errors),parent=self)
@@ -1590,7 +1636,7 @@ class TraceDock(tk.Tk):
     if new is None or not new.strip() or new.strip()==old:return
     new=new.strip()
     if new in d['channels']:messagebox.showwarning('Kanal adı kullanılıyor',f'“{new}” adlı kanal zaten var.',parent=self);return
-    for field in ('channels','units','ids','_base_channels','multipliers','channel_rates','sample_rates','_channel_x','_base_stats','_envelopes','_trailing_padding','_smoothed'):
+    for field in ('channels','units','ids','_base_channels','multipliers','channel_rates','sample_rates','_channel_x','_base_stats','_envelopes','_trailing_padding','_smoothed','_tracedock_channels'):
       if old in d.get(field,{}):d[field]={new if key==old else key:value for key,value in d[field].items()}
     axis_key=(d['uid'],old)
     if axis_key in self._channel_axes:self._channel_axes[(d['uid'],new)]=self._channel_axes.pop(axis_key)
@@ -2058,7 +2104,7 @@ class TraceDock(tk.Tk):
     def work(progress,cancel):
       if hi<lo:raise ValueError('Seçilen aralık zaman çizelgesinin dışında.')
       channels,rate=channel_export_series(series,duration,cancel)
-      count=write_series_csv(path,channels,lo,hi,decimal,elapsed,progress,cancel,uniform=True)
+      count=write_series_csv(path,channels,lo,hi,decimal,elapsed,progress,cancel,metadata=csv_roundtrip_metadata(channels,rate,elapsed),uniform=True)
       try:write_csv_export_record(path,series,rate,lo,hi,count,cancel)
       except Cancelled:raise
       except Exception as exc:raise ValueError('CSV yazıldı ancak işlem bilgi dosyası kaydedilemedi: '+str(exc)) from exc
