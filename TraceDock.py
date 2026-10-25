@@ -31,7 +31,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.30'
+APP_VERSION='1.0.31'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -407,7 +407,7 @@ def filter_description(spec):
 
 
 def prepare_dataset(d,progress=None,cancel=None):
-    d.setdefault('uid',uuid.uuid4().hex)
+    d.setdefault('uid',uuid.uuid4().hex);d.setdefault('_original_name',d['name'])
     if '_base_channels' not in d:d['_base_channels']=dict(d['channels'])
     # Rectangular CSV/TDMS tables pad shorter channels with non-finite cells.
     # Those cells are not acquired samples and must not extend a timeline clip.
@@ -874,6 +874,8 @@ class TraceDock(tk.Tk):
     durations={item[0]['uid']:item[3]-item[2] for item in layout}
     self._set_packet_positions(source_row,{key:a for key,a,b in source})
     keys=[key for key,a,b in destination if key!=uid];keys.insert(max(0,min(index,len(keys))),uid)
+    if not destination:
+      source=next(d for d in self.datasets if d['uid']==clip['dataset_uid']);self._adopt_first_packet_name(self._timeline_row_info(row_uid),source)
     start=min((a for key,a,b in destination),default=self._row_start(row_uid));clip['row_uid']=row_uid;positions={}
     for key in keys:positions[key]=start;start+=durations[key]
     self._set_packet_positions(row_uid,positions);self.timeline_row=row_uid;self._timeline_changed()
@@ -887,6 +889,9 @@ class TraceDock(tk.Tk):
  def timeline_add(self):
     if not self.datasets:self.status.set('Önce bir veri dosyası ekleyin');return
     d=self.datasets[self.active];self._timeline_add_source(d['uid'],tuple(n for n in d['channels'] if n in d['_selected']),self.timeline_row)
+ def _adopt_first_packet_name(self,row,d):
+    original=d.get('_original_name',Path(d.get('path',d['name'])).name)
+    if d['name']!=original:row['name']=d['name']
  def _timeline_add_source(self,dataset_uid,names,row_uid=None,new_row=False):
     d=next((d for d in self.datasets if d['uid']==dataset_uid),None)
     if d is None:return
@@ -895,6 +900,7 @@ class TraceDock(tk.Tk):
     if new_row:row_uid=self._new_timeline_row()['uid']
     row=next((row for row in self.timeline_rows if row['uid']==(row_uid or self.timeline_row)),None)
     if row is None:return
+    if not any(clip.get('row_uid',self.timeline_rows[0]['uid'])==row['uid'] for clip in self.timeline):self._adopt_first_packet_name(row,d)
     clip={'uid':uuid.uuid4().hex,'dataset_uid':dataset_uid,'row_uid':row['uid'],'channels':list(dict.fromkeys(names))};self.timeline.append(clip);self.timeline_selected=clip['uid'];self.timeline_row=row['uid']
     self._timeline_changed();self.after_idle(self._timeline_reveal_row);self.status.set(f"{d['name']} • {len(clip['channels'])} kanal → {row['name']}")
  def timeline_all(self):
@@ -902,6 +908,7 @@ class TraceDock(tk.Tk):
     clips=[{'uid':uuid.uuid4().hex,'dataset_uid':d['uid'],'row_uid':self.timeline_row,'channels':[n for n in d['channels'] if n in d['_selected']]} for d in self.datasets if d['_selected']]
     if not clips:self.status.set('Eklemek için en az bir kanal işaretleyin');return
     row=self.timeline_row;removed={'clip:'+c['uid'] for c in self.timeline if c.get('row_uid',self.timeline_rows[0]['uid'])==row};self.timeline=[c for c in self.timeline if c.get('row_uid',self.timeline_rows[0]['uid'])!=row]
+    first=next(d for d in self.datasets if d['uid']==clips[0]['dataset_uid']);self._adopt_first_packet_name(self._timeline_row_info(row),first)
     self.timeline.extend(clips);self.timeline_selected=clips[0]['uid'];self.probes={k:v for k,v in self.probes.items() if k[0] not in removed};self._timeline_fit=True;self._timeline_changed();self._timeline_reveal_row()
  def timeline_move(self,delta):
     keys=[uid for uid,a,b in self._packet_intervals(self.timeline_row)]
