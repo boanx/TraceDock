@@ -31,6 +31,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
+APP_VERSION='1.0.30'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -207,7 +208,7 @@ def write_csv_export_record(path,groups,rate,lo,hi,count,cancel=None):
             if not len(axis):continue
             packets.append({'source_file':Path(d.get('path',d['name'])).name,'source_channel':name,'source_hz':axis.rate,'sample_count':len(axis),'start_s':float(axis[0]),'end_exclusive_s':float(axis[0])+len(axis)/axis.rate,'unit':entry.get('unit',''),'multiplier':float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1)),'filtered':entry.get('filter_spec')})
         channels.append({'column':group['label'],'packets':packets})
-    record={'application':'TraceDock','version':'1.0.29','csv_file':Path(path).name,'csv_sha256':digest.hexdigest(),'export_hz':rate,'time_grid_origin_s':0.,'range_s':[lo,hi],'rows':count,'resampling':'zero_order_hold_previous_sample','gap_value':0,'numeric_time_column':'time_s','display_time_column':'time','channels':channels}
+    record={'application':APP_NAME,'version':APP_VERSION,'csv_file':Path(path).name,'csv_sha256':digest.hexdigest(),'export_hz':rate,'time_grid_origin_s':0.,'range_s':[lo,hi],'rows':count,'resampling':'zero_order_hold_previous_sample','gap_value':0,'numeric_time_column':'time_s','display_time_column':'time','channels':channels}
     temporary=None
     try:
         with tempfile.NamedTemporaryFile('w',encoding='utf-8',dir=str(Path(path).parent),prefix='.tracedock-info-',suffix='.tmp',delete=False) as output:
@@ -1275,7 +1276,7 @@ class TraceDock(tk.Tk):
 
  def _tdms_settings(self,channels):
     win=tk.Toplevel(self);win.title('TDMS kanal hızları ve çarpanları');size_dialog(win,self,860,600);win.transient(self);win.grab_set();win.configure(bg='#f4f8fb')
-    self._wrapped_label(win,text='Hız metaverisi otomatik doldurulur. Kanallar en yüksek hıza eşitlenir; her kanalın çarpanını düzenleyin.',fg='#203449',bg='#f4f8fb',font=ui_font(self,11,'bold')).pack(fill='x',padx=14,pady=(14,8))
+    self._wrapped_label(win,text='Hız metaverisi otomatik doldurulur. Her kanalın Hz ve çarpanını düzenleyin; frekanslar içe aktarımda korunur.',fg='#203449',bg='#f4f8fb',font=ui_font(self,11,'bold')).pack(fill='x',padx=14,pady=(14,8))
     frame=tk.Frame(win,bg='#f4f8fb');frame.pack(fill='both',expand=True,padx=14,pady=8)
     tree=AdaptiveTreeview(frame,columns=('channel','rate','factor'),show='headings');tree.heading('channel',text='Grup / kanal');tree.heading('rate',text='Örnekleme hızı (Hz)');tree.heading('factor',text='Çarpan');tree.column('channel',width=500);tree.column('rate',width=170,anchor='center');tree.column('factor',width=130,anchor='center');self._pack_measurement_table(tree,frame)
     for i,ch in enumerate(channels):tree.insert('','end',iid=str(i),values=(ch['name'],ch['default_rate'],'1'))
@@ -1298,13 +1299,13 @@ class TraceDock(tk.Tk):
         if editor['widget'] is not None:editor['widget'].event_generate('<Return>')
         row=tree.item(str(i),'values')
         try:
-          rate=int(row[1]);factor=float(row[2].replace(',','.'))
-          if rate<=0 or not math.isfinite(factor):raise ValueError
-        except (ValueError,IndexError):messagebox.showerror('Ayarları kontrol edin',f"{row[0]} için pozitif tam sayı Hz ve geçerli çarpan girin.",parent=win);return
-      result['settings']=[(int(tree.item(str(i),'values')[1]),float(tree.item(str(i),'values')[2].replace(',','.'))) for i in range(len(channels))]
+          rate=float(row[1].replace(',','.'));factor=float(row[2].replace(',','.'))
+          if not math.isfinite(rate) or rate<=0 or not math.isfinite(factor):raise ValueError
+        except (ValueError,IndexError):messagebox.showerror('Ayarları kontrol edin',f"{row[0]} için pozitif sonlu Hz ve geçerli çarpan girin.",parent=win);return
+      result['settings']=[(float(tree.item(str(i),'values')[1].replace(',','.')),float(tree.item(str(i),'values')[2].replace(',','.'))) for i in range(len(channels))]
       win.destroy()
     self._button(buttons,'Vazgeç',win.destroy).pack(side='right')
-    self._button(buttons,'Senkronize et',accept).pack(side='right',padx=8)
+    self._button(buttons,'Dosyayı ekle',accept).pack(side='right',padx=8)
     self.wait_window(win)
     return result['settings']
  def add_tdms(self):
@@ -1315,51 +1316,52 @@ class TraceDock(tk.Tk):
     if not self._pending_tdms:return
     path=self._pending_tdms.pop(0)
     def read(progress,cancel):
-      channels=[]
-      with TdmsFile.open(path) as tdms:
-        source=[(group,ch) for group in tdms.groups() for ch in group.channels()]
-        for i,(group,ch) in enumerate(source):
-          check_cancel(cancel);props=ch.properties;rate=''
-          try:
-            increment=float(props.get('wf_increment',0));hz=1/increment if increment>0 else 0
-            if hz>0 and abs(hz-round(hz))<1e-7:rate=str(round(hz))
-          except (ValueError,TypeError,ZeroDivisionError):pass
-          channels.append({'name':f'{group.name}/{ch.name}','values':np.asarray(ch[:]),'unit':str(props.get('unit_string',props.get('unit',''))),'id':str(props.get('NI_ChannelNumber',ch.name)),'default_rate':rate});progress((i+1)/max(1,len(source)),f'{i+1}/{len(source)} kanal okundu')
-      if not channels:raise ValueError('TDMS dosyasında kanal bulunamadı.')
-      return channels
-    def loaded(channels):
-      settings=self._tdms_settings(channels)
-      if settings is None:self.after_idle(self._next_tdms);return
-      destination=filedialog.asksaveasfilename(title='Senkronize TDMS CSV dosyasını kaydet',initialfile=f'{Path(path).stem}_senkronize.csv',initialdir=str(Path(path).parent),defaultextension='.csv',filetypes=[('CSV','*.csv')])
-      if not destination:self.after_idle(self._next_tdms);return
-      rates=[pair[0] for pair in settings];factors=[pair[1] for pair in settings];common=max(rates);row_count=max((math.ceil(len(ch['values'])*common/rate-1e-10) for ch,rate in zip(channels,rates)),default=0)
-      if row_count>5_000_000 and not messagebox.askyesno('Büyük çıktı',f'Ortak hız {common:,} Hz ve yaklaşık {row_count:,} satır olacak. Devam edilsin mi?',parent=self):self.after_idle(self._next_tdms);return
-      decimal=self.decimal.get()
-      def convert(progress,cancel):
-        base={};aligned={};ids={};units={};clock=SampleTimeAxis(row_count,common)
-        def align(item):
-          ch,rate,factor=item;check_cancel(cancel);data=ch['values']
-          if data.dtype.kind not in 'iufb':raise ValueError(f"{ch['name']} sayısal olmayan veri içeriyor.")
-          valid=min(row_count,math.ceil(len(data)*common/rate-1e-10));values=np.full(row_count,np.nan)
-          for start in range(0,valid,65536):
-            check_cancel(cancel);stop=min(valid,start+65536);idx=np.minimum((np.arange(start,stop,dtype=float)*rate/common).astype(np.int64),len(data)-1);values[start:stop]=data[idx]
-          return ch['name'],values
-        workers=min(len(channels),resource_plan(row_count*len(channels)*8)['workers']);results={}
-        with ThreadPoolExecutor(max_workers=max(1,workers),thread_name_prefix='TraceDock-TDMS') as executor:
-          futures=[executor.submit(align,item) for item in zip(channels,rates,factors)]
-          for i,future in enumerate(as_completed(futures)):
-            name,values=future.result();results[name]=values;progress(.25*(i+1)/len(channels),name+' eşlendi')
-        for ch,factor in zip(channels,factors):
-          name=ch['name'];values=results[name];base[name]=values;aligned[name]=values if factor==1 else ScaledValues(values,factor);ids[name]=ch['id'];units[name]=ch['unit']
-        metadata=[['ID']+list(ids.values()),['Unit']+list(units.values()),['SampleRate']+rates,['Multiplier']+[number_text(v,decimal) for v in factors],['CommonRate']+[common]*len(channels)]
-        series=[{'label':name,'x':clock,'y':values} for name,values in aligned.items()]
-        d={'name':Path(destination).name,'path':str(destination),'xname':'time','x':clock,'_base_x':clock,'x_is_date':False,'channels':aligned,'units':units,'ids':ids,'sample_rates':dict(zip(aligned,rates)),'grid_rate':common,'_base_rate':common,'multipliers':dict(zip(aligned,factors)),'_base_channels':base}
-        prepare_dataset(d,lambda f,msg:progress(.25+.2*f,msg),cancel)
-        write_series_csv(destination,series,0,float('inf'),decimal,True,lambda f,msg:progress(.45+.55*f,msg),cancel,metadata)
-        return d
+      # Only application-owned temporary files are created during import.
+      # Arrays are staged one channel at a time, then loaded for display.
+      cache=tempfile.TemporaryDirectory(prefix='tracedock-tdms-')
+      try:
+        channels=[]
+        with TdmsFile.open(path) as tdms:
+          source=[(group,ch) for group in tdms.groups() for ch in group.channels()]
+          for i,(group,ch) in enumerate(source):
+            check_cancel(cancel);props=ch.properties;rate=''
+            try:
+              increment=float(props.get('wf_increment',0));hz=1/increment if increment>0 else 0
+              if math.isfinite(hz) and hz>0:rate=format(hz,'.17g')
+            except (ValueError,TypeError,ZeroDivisionError):pass
+            data=np.asarray(ch[:]);check_cancel(cancel)
+            if data.dtype.kind not in 'iufb':raise ValueError(f'{group.name}/{ch.name} sayısal olmayan veri içeriyor.')
+            target=Path(cache.name)/f'channel-{i}.npy';np.save(target,data,allow_pickle=False);del data
+            channels.append({'name':f'{group.name}/{ch.name}','cache_path':str(target),'unit':str(props.get('unit_string',props.get('unit',''))),'id':str(props.get('NI_ChannelNumber',ch.name)),'default_rate':rate})
+            progress((i+1)/max(1,len(source)),f'{i+1}/{len(source)} kanal okundu')
+        if not channels:raise ValueError('TDMS dosyasında kanal bulunamadı.')
+        check_cancel(cancel);return channels,cache
+      except BaseException:
+        cache.cleanup();raise
+    def loaded(result):
+      channels,cache=result
+      try:settings=self._tdms_settings(channels)
+      except BaseException:
+        cache.cleanup();raise
+      if settings is None:
+        cache.cleanup();self.after_idle(self._next_tdms);return
+      def prepare(progress,cancel):
+        try:
+          base={};units={};ids={};rates={};factors={}
+          for i,(ch,(rate,factor)) in enumerate(zip(channels,settings)):
+            check_cancel(cancel);name=ch['name'];base[name]=np.load(ch['cache_path'],allow_pickle=False)
+            rates[name]=rate;factors[name]=factor;units[name]=ch['unit'];ids[name]=ch['id']
+            progress(.3*(i+1)/len(channels),name+' hazırlanıyor')
+          first=next(iter(base));clock=SampleTimeAxis(len(base[first]),rates[first])
+          d={'name':Path(path).name,'path':str(path),'source_kind':'tdms','xname':'time','x':clock,'_base_x':clock,'x_is_date':False,'channels':dict(base),'units':units,'ids':ids,'sample_rates':dict(rates),'grid_rate':rates[first],'_base_rate':rates[first],'multipliers':factors,'_base_channels':base}
+          prepare_dataset(d,lambda f,msg:progress(.3+.7*f,msg),cancel)
+          for name,rate in rates.items():check_cancel(cancel);set_timing(d,[name],'rate',rate)
+          return d
+        finally:cache.cleanup()
       def complete(d):
-        self.datasets.append(d);self.active=len(self.datasets)-1;self.selected=set(d['_selected']);self.redraw_all(preserve_view=True);self.status.set(f'{Path(path).name} dönüştürüldü • {common:,} Hz • {row_count:,} satır');self.after_idle(self._next_tdms)
-      self._start_job('TDMS dönüştürülüyor',convert,complete,lambda msg:self.after_idle(self._next_tdms))
+        self.datasets.append(d);self.active=len(self.datasets)-1;self.selected=set(d['_selected']);self.redraw_all(preserve_view=True)
+        self.status.set(f'{Path(path).name} eklendi • {len(channels)} kanal • kanal Hz değerleri korundu');self.after_idle(self._next_tdms)
+      if not self._start_job('TDMS hazırlanıyor',prepare,complete,lambda msg:self.after_idle(self._next_tdms)):cache.cleanup()
     self._start_job('TDMS okunuyor',read,loaded,lambda msg:self.after_idle(self._next_tdms))
 
  def _elapsed(self,index,rate):
