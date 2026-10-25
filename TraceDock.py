@@ -31,7 +31,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.31'
+APP_VERSION='1.0.32'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -633,8 +633,8 @@ class TraceDock(tk.Tk):
     self._filter_upper_label=ttk.Label(filter_controls,text='Üst (Hz)');self._filter_upper_entry=ttk.Entry(filter_controls,textvariable=self.filter_upper,width=8);self._filter_upper_entry.bind('<Return>',lambda e:self._apply_filter_frequency())
     self._filter_apply=self._button(filter_controls,'Uygula',self._apply_filter_frequency);self._filter_apply.pack(side='left',padx=3)
 
-    self.coords=tk.StringVar(value='X = —    Y = —');bar3=self._control_row(toolbar,fill='x',pady=(3,0));self._button(bar3,'Y eksenleri',self._show_y_axes).pack(side='right',padx=(6,0));ttk.Checkbutton(bar3,text='Lejantı göster',variable=self.legend_visible,command=self._toggle_legend).pack(side='right',padx=(8,0));tk.Label(bar3,text='Sol tık: prob ekle/sil • Sağ tık: prob etiketi • Sol sürükle: aralık • Sağ sürükle: kaydır • Tekerlek / orta tuş: zoom',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=2)
-    self.graph_panels=ResponsivePanedWindow(right,fraction=.73,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.graph_panels.pack(fill='both',expand=True,padx=10,pady=(0,8));plotbox=tk.Frame(self.graph_panels,bg='#f4f8fb');self.graph_panels.add(plotbox,minsize=120,stretch='always');readout=tk.Label(plotbox,textvariable=self.coords,fg='#405d75',bg='#f4f8fb',font=ui_font(self,8),anchor='w',justify='left',padx=6,pady=2);readout.pack(side='bottom',fill='x');readout.bind('<Configure>',lambda e:readout.configure(wraplength=max(150,e.width-12))); self.fig=Figure(figsize=(9,5),dpi=100,facecolor='#f4f8fb');self.ax=self.fig.add_subplot(111);self.ax.set_facecolor('#ffffff');self.fig.subplots_adjust(left=.07,right=.99,top=.98,bottom=.11);self.canvas=FigureCanvasTkAgg(self.fig,master=plotbox);self.canvas.get_tk_widget().pack(fill='both',expand=True);self.canvas.mpl_connect('motion_notify_event',self.on_motion);self.canvas.mpl_connect('button_press_event',self.on_press);self.canvas.mpl_connect('button_release_event',self.on_release);self.canvas.mpl_connect('scroll_event',self.on_scroll);self.canvas.mpl_connect('resize_event',self._on_graph_resize)
+    self.coords=tk.StringVar(value='Süre = —');bar3=self._control_row(toolbar,fill='x',pady=(3,0));self._button(bar3,'Y eksenleri',self._show_y_axes).pack(side='right',padx=(6,0));ttk.Checkbutton(bar3,text='Lejantı göster',variable=self.legend_visible,command=self._toggle_legend).pack(side='right',padx=(8,0));tk.Label(bar3,text='Sol tık: prob ekle/sil • Sağ tık: prob etiketi • Sol sürükle: aralık • Sağ sürükle: kaydır • Tekerlek / orta tuş: zoom',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=2)
+    self.graph_panels=ResponsivePanedWindow(right,fraction=.73,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.graph_panels.pack(fill='both',expand=True,padx=10,pady=(0,8));plotbox=tk.Frame(self.graph_panels,bg='#f4f8fb');self.graph_panels.add(plotbox,minsize=120,stretch='always');readout_host=HorizontalScrollFrame(plotbox,bg='#f4f8fb');readout_host.pack(side='bottom',fill='x');readout=tk.Label(readout_host.content,textvariable=self.coords,fg='#405d75',bg='#f4f8fb',font=ui_font(self,8),anchor='w',justify='left',padx=6,pady=2);readout.pack(side='left');self.coords.trace_add('write',lambda *args:readout_host._schedule()); self.fig=Figure(figsize=(9,5),dpi=100,facecolor='#f4f8fb');self.ax=self.fig.add_subplot(111);self.ax.set_facecolor('#ffffff');self.fig.subplots_adjust(left=.07,right=.99,top=.98,bottom=.11);self.canvas=FigureCanvasTkAgg(self.fig,master=plotbox);self.canvas.get_tk_widget().pack(fill='both',expand=True);self.canvas.mpl_connect('motion_notify_event',self.on_motion);self.canvas.mpl_connect('button_press_event',self.on_press);self.canvas.mpl_connect('button_release_event',self.on_release);self.canvas.mpl_connect('scroll_event',self.on_scroll);self.canvas.mpl_connect('resize_event',self._on_graph_resize)
     measurements=tk.Frame(self.graph_panels,bg='#f4f8fb',height=170);measurements.pack_propagate(False);self.graph_panels.add(measurements,minsize=100,height=170,stretch='always');self.tables=ttk.Notebook(measurements);self.tables.pack(fill='both',expand=True,padx=4,pady=4);stats_tab=tk.Frame(self.tables,bg='#f4f8fb');probe_tab=tk.Frame(self.tables,bg='#f4f8fb');self.tables.add(stats_tab,text='Kanal istatistikleri');self.tables.add(probe_tab,text='Problar');cols=('channel','start','end','min','max');self.table=AdaptiveTreeview(stats_tab,columns=cols,show='headings',height=4);labels=['Kanal','Başlangıç','Bitiş','Minimum','Maksimum'];widths=[280,150,150,150,150]
     for c,l,w in zip(cols,labels,widths):self.table.heading(c,text=l,command=lambda col=c:self.sort_tree(self.table,col));self.table.column(c,width=w,anchor='w' if c=='channel' else 'e')
     self._pack_measurement_table(self.table,stats_tab);pcols=('channel','probe','x','y');self.probe_table=AdaptiveTreeview(probe_tab,columns=pcols,show='headings',height=4)
@@ -1801,7 +1801,7 @@ class TraceDock(tk.Tk):
       if axis is not self.ax:axis.remove()
     self._background=None;self.ax.clear();self._guide_artists=[];self._line_data={};self._series_map={};self._legend_artist=None;self._legend_targets=[];self.ax.set_facecolor('#ffffff');self.ax.set_axisbelow(True);self.ax.tick_params(colors='#40596f')
     for spine in self.ax.spines.values():spine.set_color('#cbdbe7');spine.set_visible(True)
-    self.ax.tick_params(axis='y',left=True,labelleft=True);series=self._plot_series();self._configure_y_axes(series);elapsed=self.xcombo.get()=='Geçen süre';budget=max(256,min(4000,60000//max(1,len(series))))
+    self.ax.tick_params(axis='y',left=True,labelleft=True);series=self._plot_series();self._configure_y_axes(series);self._build_hover_index(series);elapsed=self.xcombo.get()=='Geçen süre';budget=max(256,min(4000,60000//max(1,len(series))))
     if self.filtered_view.get():self.ax.text(.99,.985,f'Filtreli görünüm · {filter_description(self._active_filter)}',transform=self.ax.transAxes,ha='right',va='top',fontsize=8,color='#7261c4',bbox=dict(facecolor='#ffffff',edgecolor='#cbdbe7',alpha=.9),zorder=25)
     if not series:
       self.ax.set_xlim(*(view[0] if view else (0,max(self._timeline_duration(),1e-9) if self.timeline else 1)));self.ax.set_ylim(*(view[1].get('L1',(0,1)) if view else (0,1)));self.ax.text(.5,.5,('Görünür veri yok. Zaman çizelgesinde sağ tık ile Göster seçin.' if self.timeline else 'Grafik için Dosya/Kanal sütununa sağ tıklayıp zaman çizelgesine ekleyin'),color='#40596f',ha='center',va='center',transform=self.ax.transAxes);self.span_artist=None;self.cursor_x=None;self.cursor_y=None;self._reset_axis_slots.clear();self._draw_guides();self.canvas.draw_idle();self._update_tables();return
@@ -1861,13 +1861,50 @@ class TraceDock(tk.Tk):
       if artist.get_visible():artist.axes.draw_artist(artist)
     self.canvas.blit(self.ax.bbox)
 
+ def _build_hover_index(self,series):
+    rows={}
+    for entry in series:
+      row=rows.setdefault(entry['row_uid'],{})
+      row.setdefault(entry['track'],[]).append(entry)
+    self._hover_rows=[]
+    for row in self.timeline_rows:
+      groups=rows.get(row['uid'],{})
+      if not groups:continue
+      tracks=[]
+      for entries in groups.values():
+        entries=sorted((entry for entry in entries if len(entry['x'])),key=lambda entry:entry['x'][0])
+        if entries:tracks.append((np.asarray([float(entry['x'][0]) for entry in entries]),entries))
+      if tracks:self._hover_rows.append((row['name'],tracks))
+    self.coords.set(self._hover_readout(self.mouse_data[0]) if self.mouse_data is not None else 'Süre = —')
+ def _hover_readout(self,seconds):
+    if not math.isfinite(seconds):return 'Süre = —'
+    parts=['Süre = '+elapsed_text(seconds)];separate=self.timeline_match.get()=='Ayrı çizgiler'
+    for row_name,tracks in getattr(self,'_hover_rows',[]):
+      values=[]
+      for starts,entries in tracks:
+        position=int(np.searchsorted(starts,seconds,side='right'))-1
+        entry=entries[position] if position>=0 else entries[0];value=None
+        if position>=0:
+          clock=entry['x'];end=float(clock[0])+len(clock)/clock.rate
+          if seconds<end:
+            index=clock.searchsorted(seconds,'right')-1
+            if 0<=index<len(clock):value=entry['y'][index]
+        text=self._number(value) if value is not None else '—'
+        if entry.get('unit'):text+=' '+entry['unit']
+        if len(tracks)>1:
+          label=entry['name']
+          if separate:label+=f" (P{entry['clip_index']+1})"
+          text=label+' = '+text
+        values.append(text)
+      parts.append(row_name+' = '+values[0] if len(values)==1 else row_name+': '+', '.join(values))
+    return '    |    '.join(parts)
  def on_motion(self,e):
     if not self._in_graph(e):
       if getattr(self,'cursor_x',None) is not None:self.cursor_x.set_visible(False);self.cursor_y.set_visible(False);self._blit_cursor()
       return
     now=time.perf_counter()
     if now-self._motion_clock<(1/25 if self.drag_mode in ('pan','axis_zoom') else 1/35):return
-    self._motion_clock=now;xvalue,yvalue=self._graph_point(e);self.mouse_data=(xvalue,yvalue);values='  '.join(Y_AXIS_LABELS[slot]+' = '+self._number(self._graph_point(e,axis)[1]) for slot,axis in self._y_axes.items() if slot in self._used_axis_slots);self.coords.set('X = '+elapsed_text(xvalue)+'    '+values)
+    self._motion_clock=now
     if self.drag_mode in ('pan','axis_zoom') and self.drag_start:
       sx,sy,xlim,ylims=self.drag_start;dx=e.x-sx;dy=e.y-sy;bbox=self.ax.bbox
       if self.drag_mode=='pan':
@@ -1879,6 +1916,7 @@ class TraceDock(tk.Tk):
         for slot,limits in ylims.items():
           center=sum(limits)/2;self._y_axes[slot].set_ylim(center+(limits[0]-center)*fy,center+(limits[1]-center)*fy)
       self._background=None;self.canvas.draw_idle()
+    xvalue,yvalue=self._graph_point(e);self.mouse_data=(xvalue,yvalue);self.coords.set(self._hover_readout(xvalue))
     if getattr(self,'cursor_x',None) is not None:
       cy=self._graph_point(e,self._cursor_axis)[1];self.cursor_x.set_xdata([xvalue]*2);self.cursor_y.set_ydata([cy]*2);self.cursor_x.set_visible(True);self.cursor_y.set_visible(True)
       if self.drag_mode not in ('pan','axis_zoom'):self._blit_cursor()

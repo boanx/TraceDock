@@ -287,3 +287,11 @@ TDMS eklerken artık ara/senkronize CSV için kaydetme konumu sorulmaz. TDMS kan
 ## İlk paketten otomatik satır adı (v1.0.31)
 
 Dosya/veri adı uygulama içinde değiştirildiyse, bu veriden boş bir zaman çizelgesi satırına eklenen ilk paket satıra kendi adını verir. Lejant ve CSV kanal başlıkları da satır adını kullanır. Sonradan aynı satıra eklenen paketler satır adını değiştirmez. Yeni satıra ekleme, boş satıra Ctrl+sürükle ile taşıma ve Tümünü sırala ile satırı yeniden oluşturma aynı ilk-paket kuralını kullanır. Adı özgün dosya adıyla aynı olan paket otomatik ad atamaz. Kayıtlı özgün ad korunur; yalnızca görünür satır adı güncellenir. Arayüz işlev testi çalıştırılmadı.
+
+## Fare zamanında satır değerleri (v1.0.32)
+
+Grafik altındaki fare okuması artık sol/sağ Y ekseninin fare yüksekliğindeki koordinatını değil, imlecin zamanına karşılık gelen satır ölçümlerini gösterir. Süre HH:MM:SS.SSSS biçimindedir. Tek kanallı satır “Satır adı = değer birim”; çok kanallı satır kanal adları ve ayrı değerler halinde yazılır. Yalnızca grafikteki görünür satır/kanallar listelenir. Uzun okuma alanı tek satırda kalır; sığmazsa kendi yatay kaydırma çubuğuyla okunur.
+
+Değer imleç zamanında veya ondan önceki en son gerçek örnektir; araya yeni/interpole değer üretilmez. Her kanal kendi Hz ve paket konumunu kullanır. Etkin ham/filtreli veri, çarpan ve birim dikkate alınır. Paket boşluğu, kanalın dışında kalan zaman veya eksik ölçüm “—” ile gösterilir; eski paketin son değeri boşluğa taşınmaz. Kaydırma sırasında okuma ve çapraz imleç yeni görünümdeki aynı zamanı kullanır.
+
+Paket başlangıçlarına göre küçük bir arama indeksi hazırlanır; her fare hareketinde büyük ölçüm dizileri kopyalanmaz. Filtre, isim veya görünürlük değişiminde okuma yenilenir. CSV aktarımındaki ortak Hz/örnek tekrarı kuralları değişmez. Arayüz işlev testi çalıştırılmadı.
