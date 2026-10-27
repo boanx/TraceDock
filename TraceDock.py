@@ -1,5 +1,6 @@
 import multiprocessing
 if __name__=='__main__':multiprocessing.freeze_support()
+import copy
 import csv, json, math, os, sys, traceback, uuid, threading, queue, time, tempfile, warnings, hashlib
 from array import array
 from collections import deque
@@ -32,7 +33,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.39'
+APP_VERSION='1.0.40'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -594,7 +595,7 @@ class TraceDock(tk.Tk):
         self._window_icons={size[0]:ImageTk.PhotoImage(icon.ico.getimage(size),master=self) for size in sorted(icon.ico.sizes())}
       self.iconbitmap(default=str(icon_path));self.iconphoto(True,*self._window_icons.values())
     self.filtered_view=tk.BooleanVar(value=False);self.filter_cutoff=tk.StringVar(value='10');self.filter_upper=tk.StringVar(value='25');self.filter_type=tk.StringVar(value='Low pass');self._active_filter=('Low pass',10.0,None)
-    self._style(); self._build(); self.load_default_config(); self.redraw_all()
+    self._style(); self._build(); self.load_default_config(); self.redraw_all(); self._init_project_tabs()
     watch_window_dpi(self)
     self.bind('<<DisplayScaleChanged>>',self._display_scale_changed,add='+')
  def _display_scale_changed(self,event):
@@ -627,6 +628,11 @@ class TraceDock(tk.Tk):
     if event.widget is self or isinstance(event.widget,tk.Toplevel):self.after_idle(lambda window=event.widget:apply_native_glass(window) if window.winfo_exists() else None)
  def _build(self):
     top=tk.Frame(self,bg='#e8eff5',height=58); top.pack(fill='x',padx=18);self._add_brand_logo(top); tk.Label(top,text='TraceDock',font=ui_font(self,18,'bold'),fg='#007f85',bg='#e8eff5').pack(side='left',pady=12); self.status=tk.StringVar(value='Çevrimdışı • veriler bilgisayarınızda kalır'); tk.Label(top,textvariable=self.status,fg='#60758a',bg='#e8eff5').pack(side='right')
+    tabrow=tk.Frame(self,bg='#e8eff5');tabrow.pack(fill='x',padx=14,pady=(0,4))
+    self._button(tabrow,'+ Yeni proje',self.new_project_tab).pack(side='right',padx=(5,0))
+    self._button(tabrow,'Sekmeyi kapat',self.close_project_tab).pack(side='right',padx=(5,0))
+    tabscroll=HorizontalScrollFrame(tabrow,bg='#e8eff5');tabscroll.pack(side='left',fill='x',expand=True)
+    self._project_tabs=ttk.Notebook(tabscroll.content,height=0);self._project_tabs.pack(side='left');self._project_tabs.bind('<<NotebookTabChanged>>',self._on_project_tab_selected)
     self.workarea=ResponsivePanedWindow(self,fraction=.74,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.workarea.pack(fill='both',expand=True,padx=14,pady=(0,14));body=ResponsivePanedWindow(self.workarea,fraction=.24,orient='horizontal',bg='#d9e4ed',sashwidth=5,bd=0);self.workarea.add(body,minsize=320,stretch='always'); sidebar_host=tk.Frame(body,bg='#f4f8fb',width=320);right=tk.Frame(body,bg='#f4f8fb');body.add(sidebar_host,minsize=220);body.add(right,minsize=380);sidebar_host.configure(highlightthickness=1,highlightbackground='#ffffff');right.configure(highlightthickness=1,highlightbackground='#ffffff')
     self._sidebar_body=body;self._sidebar_host=sidebar_host;self._sidebar_collapsed=False
     sidebar_host.rowconfigure(0,weight=1);sidebar_host.columnconfigure(0,weight=1)
@@ -645,10 +651,14 @@ class TraceDock(tk.Tk):
     for label,command in [('Proje aç',self.open_project),('Projeyi kaydet',self.save_project)]:
       button=self._button(projects,label,command);button.configure(padx=7,pady=5);projects.add(button)
     menubar=tk.Menu(self);project_menu=tk.Menu(menubar,tearoff=False)
+    project_menu.add_command(label='Yeni proje',accelerator='Ctrl+N',command=self.new_project_tab)
+    project_menu.add_command(label='Sekmeyi kapat',accelerator='Ctrl+W',command=self.close_project_tab)
+    project_menu.add_separator()
     project_menu.add_command(label='Proje aç…',accelerator='Ctrl+O',command=self.open_project)
     project_menu.add_command(label='Projeyi kaydet',accelerator='Ctrl+S',command=self.save_project)
     project_menu.add_command(label='Projeyi farklı kaydet…',accelerator='Ctrl+Shift+S',command=lambda:self.save_project(save_as=True))
     menubar.add_cascade(label='Proje',menu=project_menu);self.configure(menu=menubar)
+    self.bind('<Control-n>',lambda e:(self.new_project_tab(),'break')[1]);self.bind('<Control-w>',lambda e:(self.close_project_tab(),'break')[1]);self.bind('<Control-Tab>',lambda e:self._cycle_project_tab(1));self.bind('<Control-Shift-Tab>',lambda e:self._cycle_project_tab(-1))
     self.bind('<Control-o>',lambda e:(self.open_project(),'break')[1]);self.bind('<Control-s>',lambda e:(self.save_project(),'break')[1]);self.bind('<Control-Shift-S>',lambda e:(self.save_project(save_as=True),'break')[1])
     file_actions=ResponsiveButtonBar(left,bg='#f4f8fb');file_actions.pack(fill='x',padx=10)
     for label,command in [('Exlab dosyası ekle',self.add_strain),('CSV ekle',self.add_csv),('TDMS ekle',self.add_tdms),('Kaldır',self.remove_file)]:
@@ -1264,6 +1274,9 @@ class TraceDock(tk.Tk):
     self._pending_tdms=[]
     if self._job:self._job['cancel'].set();self._job_cancel.config(state='disabled');self.status.set('İptal ediliyor…')
  def _close_app(self):
+    if hasattr(self,'_project_sessions') and len(self._project_sessions)>1:
+      has_data=bool(self.datasets or self.timeline) or any(session['datasets'] for key,session in self._project_sessions.items() if key!=self._active_project_tab)
+      if has_data and not messagebox.askyesno('TraceDock kapatılsın mı?','Tüm proje sekmeleri kapanacak. Kaydedilmemiş değişiklikler varsa kaybolur. Devam edilsin mi?',parent=self):return
     self._closing=True
     if self._job:self._job['cancel'].set()
     self.destroy()
@@ -2167,6 +2180,59 @@ class TraceDock(tk.Tk):
         for item in items:writer.writerow(self.table.item(item,'values'))
       self.status.set(f'{len(items)} kanal istatistiği dışa aktarıldı • {Path(p).name}')
     except Exception as exc:messagebox.showerror('CSV dışa aktarılamadı',str(exc))
+ def _tab_snapshot(self):
+    manifest,_arrays=self._project_snapshot();state=manifest['state']
+    for field in ('channel_axes','track_axes','colors','probes'):state[field]={project_key(k):v for k,v in state[field]}
+    return state
+ def _init_project_tabs(self):
+    self._project_sessions={};self._active_project_tab=None;self._new_project_number=0;self._tab_blank_state=self._tab_snapshot()
+    self._add_project_tab(None,(copy.deepcopy(self._tab_blank_state),[]),capture=False)
+ def _capture_project_tab(self):
+    session=self._project_sessions.get(self._active_project_tab)
+    if session is None:return
+    session.update(state=self._tab_snapshot(),datasets=self.datasets,path=self._project_path)
+ def _sync_project_tab_caption(self):
+    if not hasattr(self,'_project_sessions'):return
+    session=self._project_sessions.get(self._active_project_tab)
+    if session is None:return
+    session['path']=self._project_path;label=Path(self._project_path).name if self._project_path else session['name']
+    self._project_tabs.tab(self._active_project_tab,text=label);self.title('TraceDock — '+label)
+ def _add_project_tab(self,path,result,capture=True):
+    if capture:self._capture_project_tab()
+    state,datasets=result;self._new_project_number+=1;frame=ttk.Frame(self._project_tabs);key=str(frame)
+    self._project_sessions[key]={'frame':frame,'state':state,'datasets':datasets,'path':str(path) if path else None,'name':f'Yeni proje {self._new_project_number}'}
+    self._active_project_tab=key;self._project_tabs.add(frame,text=Path(path).name if path else self._project_sessions[key]['name']);self._project_tabs.select(key)
+    self._apply_project(path,(state,datasets));self._sync_project_tab_caption();return key
+ def new_project_tab(self,capture=True):
+    if not hasattr(self,'_project_sessions'):return
+    if self._job is not None:self.status.set('Yeni sekme için devam eden işlemin bitmesini bekleyin');return
+    state=copy.deepcopy(self._tab_blank_state);row={'uid':uuid.uuid4().hex,'name':'Satır 1'};state['rows']=[row];state['row']=row['uid']
+    key=self._add_project_tab(None,(state,[]),capture=capture);self.status.set(self._project_sessions[key]['name']+' açıldı')
+ def _activate_project_tab(self,key,capture=True):
+    if key not in self._project_sessions or key==self._active_project_tab:return
+    if self._job is not None:
+      self._project_tabs.select(self._active_project_tab);self.status.set('İşlem tamamlanınca proje sekmesini değiştirebilirsiniz');return
+    if capture:self._capture_project_tab()
+    self._active_project_tab=key;self._project_tabs.select(key);session=self._project_sessions[key]
+    self._apply_project(session['path'],(session['state'],session['datasets']));self._sync_project_tab_caption();self.status.set('Proje sekmesi: '+self._project_tabs.tab(key,'text'))
+ def _on_project_tab_selected(self,event=None):
+    if not hasattr(self,'_project_sessions'):return
+    self._activate_project_tab(self._project_tabs.select())
+ def _cycle_project_tab(self,direction):
+    keys=list(self._project_tabs.tabs())
+    if keys and self._active_project_tab in keys:self._activate_project_tab(keys[(keys.index(self._active_project_tab)+direction)%len(keys)])
+    return 'break'
+ def close_project_tab(self):
+    if not hasattr(self,'_project_sessions'):return
+    if self._job is not None:self.status.set('Sekmeyi kapatmak için devam eden işlemin bitmesini bekleyin');return
+    if (self.datasets or self.timeline) and not messagebox.askyesno('Proje sekmesini kapat','Bu sekme kapatılsın mı? Kaydedilmemiş değişiklikler varsa kaybolur. Diğer sekmeler açık kalır.',parent=self):return
+    key=self._active_project_tab;keys=list(self._project_tabs.tabs());index=keys.index(key);session=self._project_sessions.pop(key)
+    self._active_project_tab=None;self._project_tabs.forget(key);session['frame'].destroy();keys=list(self._project_tabs.tabs())
+    if keys:self._activate_project_tab(keys[max(0,index-1)],capture=False)
+    else:self.new_project_tab(capture=False)
+ def _project_path_owner(self,path):
+    target=os.path.normcase(os.path.abspath(path))
+    return next((key for key,session in self._project_sessions.items() if session['path'] and os.path.normcase(os.path.abspath(session['path']))==target),None)
  def _project_snapshot(self):
     arrays={};seen={}
     def array_ref(values):
@@ -2191,11 +2257,14 @@ class TraceDock(tk.Tk):
     path=None if save_as else self._project_path
     if not path:path=filedialog.asksaveasfilename(title='TraceDock projesini kaydet',defaultextension='.tdoc',initialfile=Path(self._project_path).name if self._project_path else 'calisma.tdoc',filetypes=[('TraceDock projesi','*.tdoc')])
     if not path:return
+    owner=self._project_path_owner(path)
+    if owner is not None and owner!=self._active_project_tab:
+      messagebox.showerror('Proje başka sekmede açık','Bu dosya başka sekmeye ait. Farklı bir dosya adıyla kaydedin.',parent=self);return
     try:manifest,arrays=self._project_snapshot()
     except Exception as exc:messagebox.showerror('Proje kaydedilemedi',str(exc),parent=self);return
     def work(progress,cancel):write_tdoc(path,manifest,arrays,progress,lambda:check_cancel(cancel))
     def complete(result):
-      self._project_path=str(path);self.title('TraceDock — '+Path(path).name);self.status.set('Proje kaydedildi • veriler dahil: '+Path(path).name)
+      self._project_path=str(path);self._sync_project_tab_caption();self.status.set('Proje kaydedildi • veriler dahil: '+Path(path).name)
     self._start_job('TDOC projesi kaydediliyor',work,complete)
  def _prepare_project(self,path,progress,cancel):
     manifest,arrays=read_tdoc(path,lambda f,m:progress(f*.45,m),lambda:check_cancel(cancel));state=manifest['state'];datasets=[];uids=set()
@@ -2264,6 +2333,7 @@ class TraceDock(tk.Tk):
         progress(.85+.15*(i+1)/max(1,len(datasets)),'Proje filtresi hazırlanıyor')
     check_cancel(cancel);return state,datasets
  def _apply_project(self,path,result):
+    self._project_view_generation=getattr(self,'_project_view_generation',0)+1;generation=self._project_view_generation
     state,datasets=result;self.datasets=datasets;self.active=min(max(0,int(state['active'])),max(0,len(datasets)-1));self.selected=set(datasets[self.active]['_selected']) if datasets else set()
     self.timeline_rows=state['rows'];self.timeline=state['clips'];self.timeline_row=state['row'] if state['row'] in {r['uid'] for r in self.timeline_rows} else self.timeline_rows[0]['uid'];self.timeline_selected=state['clip'] if state['clip'] in {c['uid'] for c in self.timeline} else None;self._timeline_row_number=max(int(state['row_number']),len(self.timeline_rows))
     self._channel_axes=state['channel_axes'];self._track_axes=state['track_axes'];self._track_colors=state['colors'];self.probes=state['probes'];self.timeline_match.set(state['match']);self.timeline_snap.set(state['snap']);self.legend_visible.set(state['legend']);self.decimal.set(state['decimal']);self.limit.set(state['limit']);self.filter.set(state['search'])
@@ -2277,14 +2347,17 @@ class TraceDock(tk.Tk):
     if self._timeline_collapsed!=state['timeline_collapsed']:self._toggle_timeline_panel()
     if self._sidebar_collapsed!=state['sidebar_collapsed']:self._toggle_sidebar_panel()
     def restore_view():
+      if self._closing or generation!=self._project_view_generation:return
       self.timeline_canvas.xview_moveto(state['timeline_x']);self.timeline_canvas.yview_moveto(state['timeline_y']);self._render_timeline();self.canvas.draw_idle()
-    self.after_idle(restore_view);self._project_path=str(path);self.title('TraceDock — '+Path(path).name);self.status.set('Proje açıldı • '+Path(path).name)
+    self.after_idle(restore_view);self._project_path=str(path) if path else None;self.coords.set('Süre = —');self._sync_project_tab_caption();self.status.set(('Proje açıldı • '+Path(path).name) if path else 'Yeni proje')
  def open_project(self,path=None):
     if self._job is not None:self.status.set('Proje açmak için devam eden işlemin bitmesini bekleyin');return
     if path is None:path=filedialog.askopenfilename(title='TraceDock projesini aç',filetypes=[('TraceDock projesi','*.tdoc')])
     if not path:return
-    if self.datasets and not messagebox.askyesno('Proje aç','Açılacak proje mevcut çalışmanın yerini alacak. Kaydetmediğiniz değişiklikler kaybolur. Devam edilsin mi?',parent=self):return
-    self._start_job('TDOC projesi açılıyor',lambda progress,cancel:self._prepare_project(path,progress,cancel),lambda result:self._apply_project(path,result))
+    owner=self._project_path_owner(path)
+    if owner is not None:
+      self._activate_project_tab(owner);self.status.set('Proje zaten açık • '+Path(path).name);return
+    self._start_job('TDOC projesi açılıyor',lambda progress,cancel:self._prepare_project(path,progress,cancel),lambda result:self._add_project_tab(path,result))
  def save_config(self):
     payload={'format':'TraceDock-config-v2','view':{'legend_visible':self.legend_visible.get()}}
     path=filedialog.asksaveasfilename(title='Görünüm ayarlarını kaydet',defaultextension='.json',initialfile='tracedock-config.json',filetypes=[('JSON ayarları','*.json')])
