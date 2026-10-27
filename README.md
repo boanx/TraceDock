@@ -352,3 +352,8 @@ Doğrulama: iki bağımsız veri kümesi ve çizelge arasında geçiş, örnek d
 ## Kanal kutucukları ve satır oklarında DPI ölçeği (v1.0.41)
 Dosya/kanal ağacındaki seçili, seçilmemiş ve kısmen seçili kutucuk görselleri artık ekran DPI değerine göre yeniden çizilir. %100 ölçekte 14 piksel, %200 ölçekte 28 piksel kullanılır. Grubu açıp kapatan yerel Treeview oklarının boyutu ve boşlukları da aynı oranda ölçeklenir. Monitör ölçeği değiştiğinde simgeler güncellenir; seçimler, açılmış/kapatılmış gruplar ve kaydırma konumu korunur.
 Doğrulama: 96, 144, 192, 240 ve tekrar 96 DPI değerleriyle kutucuk/ok boyutları ve kısmi seçim durumu uygulama içinde kontrol edildi.
+
+
+## Dosya içeriği açma/kapatma okunun çizimi (v1.0.42)
+Dosya/Kanal ağacında yerel temanın küçük kalan ok çizimi yerine DPIa göre yeniden çizilen özel açık/kapalı ok görselleri kullanılır. Okun kendisi ve tıklama alanı birlikte büyür; yalnızca simgenin çevresindeki boşluk büyütülmez. Çocuksuz kanallarda ok gösterilmez. Yerel tek tıkla aç/kapat ve klavye davranışları korunur.
+Doğrulama: %100, %150, %200, %250 ve tekrar %100 ölçekte 20/30/40/50/20 piksellik özel simge alanı, gerçek Treeview gösterge tıklama alanı, açma-kapatma ve kanal seçiminin korunması kontrol edildi.

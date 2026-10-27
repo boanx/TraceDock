@@ -33,7 +33,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.41'
+APP_VERSION='1.0.42'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -1474,10 +1474,32 @@ class TraceDock(tk.Tk):
     if not self.datasets:return
     new=simpledialog.askstring('Veri adı','Yeni veri adı:',initialvalue=self.datasets[self.active]['name'],parent=self)
     if new and new.strip():self.datasets[self.active]['name']=new.strip();self.redraw_all()
+ def _refresh_disclosure_icons(self):
+    size=max(12,round(20*display_fonts(self).dpi/96));style=ttk.Style(self)
+    if not hasattr(self,'_disclosure_elements'):self._disclosure_elements={}
+    if size not in self._disclosure_elements:
+      images={};points={'closed':((6,4),(14,10),(6,16)),'open':((4,6),(16,6),(10,14))}
+      for state in ('closed','open','leaf'):
+        image=Image.new('RGBA',(size*4,size*4),(0,0,0,0))
+        if state!='leaf':ImageDraw.Draw(image).polygon([(round(x*size/5),round(y*size/5)) for x,y in points[state]],fill='#007f85')
+        images[state]=ImageTk.PhotoImage(image.resize((size,size),Image.Resampling.LANCZOS),master=self)
+      element=f'TraceDockArrow{size}.indicator'
+      # Treeview exposes open and leaf items to image elements as user1/user2.
+      style.element_create(element,'image',images['closed'],('user2',images['leaf']),('user1',images['open']),sticky='')
+      self._disclosure_elements[size]=(element,images)
+    element,images=self._disclosure_elements[size]
+    if getattr(self,'_disclosure_size',None)==size:return
+    def replace(layout):
+      result=[]
+      for name,options in layout:
+        options=dict(options)
+        if 'children' in options:options['children']=replace(options['children'])
+        result.append((element if name=='Treeitem.indicator' else name,options))
+      return result
+    style.layout('Channel.Treeview.Item',replace(style.layout('Treeview.Item')));self._disclosure_size=size
  def _refresh_channel_icons(self):
     scale=display_fonts(self).dpi/96;p=lambda value:max(1,round(value*scale))
-    # Clam's native disclosure indicator has its own pixel metrics, independent of fonts.
-    ttk.Style(self).configure('Treeview',indicatorsize=p(12),indicatormargins=(p(2),0,p(4),0))
+    self._refresh_disclosure_icons()
     size=p(14)
     if getattr(self,'_check_icon_pixels',None)==size:return
     images={};supersample=4;edge=size*supersample
@@ -1492,7 +1514,7 @@ class TraceDock(tk.Tk):
     if hasattr(self,'channel_tree') and hasattr(self,'_tree_rows'):self._update_channel_checks()
  def render_channels(self):
     if not hasattr(self,'channel_tree'):
-      self.channel_tree=AdaptiveTreeview(self.chlist,columns=('rate','duration','factor','axis','unit'),show='tree headings',selectmode='extended')
+      self.channel_tree=AdaptiveTreeview(self.chlist,style='Channel.Treeview',columns=('rate','duration','factor','axis','unit'),show='tree headings',selectmode='extended')
       tree=self.channel_tree;tree.tag_configure('dataset',foreground='#007f85',font=ui_font(self,9,'bold'));tree.heading('#0',text='Dosya / kanal');tree.column('#0',width=205,minwidth=130)
       for col,label,width in [('rate','Hz',82),('duration','Süre (s)',96),('factor','Çarpan',70),('axis','Y ekseni',78),('unit','Birim',85)]:tree.heading(col,text=label);tree.column(col,width=width,minwidth=55,anchor='e')
       self._pack_measurement_table(tree,self.chlist)
