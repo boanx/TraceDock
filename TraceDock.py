@@ -20,7 +20,7 @@ from tracedock_theme import GlassButton, GlassMessages as messagebox, GlassInput
 from tracedock_layout import AdaptiveCombobox, AdaptiveTreeview, AutoScrollbar, ResponsivePanedWindow, HorizontalScrollFrame, ResponsiveButtonBar, size_dialog
 import numpy as np
 from scipy.signal import butter, sosfiltfilt
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
 from tracedock_tdms import stage_tdms
 from tracedock_project import save_project as write_tdoc, load_project as read_tdoc, freeze as project_key
 import matplotlib
@@ -33,7 +33,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.40'
+APP_VERSION='1.0.41'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -603,6 +603,7 @@ class TraceDock(tk.Tk):
     scale=display_fonts(self).dpi/96;style=ttk.Style(self);font=ui_font(self,9);bold=ui_font(self,9,'bold');p=lambda value:round(value*scale)
     style.configure('.',font=font)
     style.configure('Treeview',font=font,rowheight=max(p(28),font.metrics('linespace')+p(12)),indent=p(20))
+    self._refresh_channel_icons()
     style.configure('Treeview.Heading',font=bold,padding=(p(8),p(7)))
     style.configure('TCombobox',font=font,padding=(p(5),p(4)))
     style.configure('TEntry',font=font,padding=p(5))
@@ -1473,19 +1474,29 @@ class TraceDock(tk.Tk):
     if not self.datasets:return
     new=simpledialog.askstring('Veri adı','Yeni veri adı:',initialvalue=self.datasets[self.active]['name'],parent=self)
     if new and new.strip():self.datasets[self.active]['name']=new.strip();self.redraw_all()
+ def _refresh_channel_icons(self):
+    scale=display_fonts(self).dpi/96;p=lambda value:max(1,round(value*scale))
+    # Clam's native disclosure indicator has its own pixel metrics, independent of fonts.
+    ttk.Style(self).configure('Treeview',indicatorsize=p(12),indicatormargins=(p(2),0,p(4),0))
+    size=p(14)
+    if getattr(self,'_check_icon_pixels',None)==size:return
+    images={};supersample=4;edge=size*supersample
+    for checked in (False,True,'mixed'):
+      icon=Image.new('RGBA',(edge,edge),'#ffffff');draw=ImageDraw.Draw(icon)
+      draw.rectangle((0,0,edge-1,edge-1),outline='#b1c7d7',width=p(1)*supersample)
+      coord=lambda value:round(value*size/14*supersample)
+      if checked=='mixed':draw.rectangle((coord(3),coord(6),coord(11)-1,coord(8)-1),fill='#007f85')
+      elif checked:draw.line([(coord(3),coord(6)),(coord(5),coord(8)),(coord(10),coord(3))],fill='#007f85',width=p(2)*supersample,joint='curve')
+      images[checked]=ImageTk.PhotoImage(icon.resize((size,size),Image.Resampling.LANCZOS),master=self)
+    previous=getattr(self,'_check_images',None);self._check_images=images;self._check_icon_pixels=size
+    if hasattr(self,'channel_tree') and hasattr(self,'_tree_rows'):self._update_channel_checks()
  def render_channels(self):
     if not hasattr(self,'channel_tree'):
       self.channel_tree=AdaptiveTreeview(self.chlist,columns=('rate','duration','factor','axis','unit'),show='tree headings',selectmode='extended')
       tree=self.channel_tree;tree.tag_configure('dataset',foreground='#007f85',font=ui_font(self,9,'bold'));tree.heading('#0',text='Dosya / kanal');tree.column('#0',width=205,minwidth=130)
       for col,label,width in [('rate','Hz',82),('duration','Süre (s)',96),('factor','Çarpan',70),('axis','Y ekseni',78),('unit','Birim',85)]:tree.heading(col,text=label);tree.column(col,width=width,minwidth=55,anchor='e')
       self._pack_measurement_table(tree,self.chlist)
-      self._check_images={}
-      for checked in (False,True,'mixed'):
-        icon=tk.PhotoImage(width=14,height=14);icon.put('#b1c7d7',to=(0,0,14,14));icon.put('#ffffff',to=(1,1,13,13))
-        if checked=='mixed':icon.put('#007f85',to=(3,6,11,8))
-        elif checked:
-          for x,y in [(3,6),(4,7),(5,8),(6,7),(7,6),(8,5),(9,4),(10,3)]:icon.put('#007f85',to=(x,y,x+2,y+2))
-        self._check_images[checked]=icon
+      self._refresh_channel_icons()
       tree.bind('<Button-1>',self._channel_tree_click);tree.bind('<Double-Button-1>',self._channel_tree_edit);tree.bind('<space>',self._channel_tree_space);tree.bind('<Button-3>',self._channel_tree_menu);tree.bind('<Menu>',lambda e:self._channel_tree_menu(e,True));tree.bind('<Shift-F10>',lambda e:self._channel_tree_menu(e,True))
     tree=self.channel_tree;highlighted=tree.selection();closed={iid for iid in tree.get_children() if not tree.item(iid,'open')};scroll=tree.yview();focus=tree.focus()
     for iid in tree.get_children():tree.delete(iid)

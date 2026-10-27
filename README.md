@@ -347,3 +347,8 @@ Projeyi kaydet / Ctrl+S ve Farklı kaydet / Ctrl+Shift+S yalnızca aktif projeyi
 Sekmeyi kapat veya Ctrl+W aktif sekmeyi kapatır; veri içeren sekmeler için kaydedilmemiş değişikliklere karşı onay istenir. Son sekme kapatıldığında yeni boş proje oluşturulur. Birden fazla proje açıkken uygulama kapatılırsa tüm sekmelerin kapanacağı bildirilir.
 Kaydetme/açma/içe aktarma/filtre gibi arka plan işlemi sürerken sekme geçişi, sekme açma ve kapatma bekletilir; sonuç yanlış projeye uygulanmaz. Birden fazla büyük projeyi açık tutmak daha fazla RAM kullanır.
 Doğrulama: iki bağımsız veri kümesi ve çizelge arasında geçiş, örnek dizilerinin aynı nesne olarak kalması, farklı görünüm/prob/renk ayarları, aktif proje kaydı, yeni sekmede proje açma, zaten açık projeye dönüş, meşgul işlemde geçiş engeli, sekme kapatma onayı/yalıtımı ve görünür sekme şeridi kontrol edildi.
+
+
+## Kanal kutucukları ve satır oklarında DPI ölçeği (v1.0.41)
+Dosya/kanal ağacındaki seçili, seçilmemiş ve kısmen seçili kutucuk görselleri artık ekran DPI değerine göre yeniden çizilir. %100 ölçekte 14 piksel, %200 ölçekte 28 piksel kullanılır. Grubu açıp kapatan yerel Treeview oklarının boyutu ve boşlukları da aynı oranda ölçeklenir. Monitör ölçeği değiştiğinde simgeler güncellenir; seçimler, açılmış/kapatılmış gruplar ve kaydırma konumu korunur.
+Doğrulama: 96, 144, 192, 240 ve tekrar 96 DPI değerleriyle kutucuk/ok boyutları ve kısmi seçim durumu uygulama içinde kontrol edildi.
