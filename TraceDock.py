@@ -31,7 +31,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.36'
+APP_VERSION='1.0.37'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -818,6 +818,22 @@ class TraceDock(tk.Tk):
     if top<view+header:c.yview_moveto(max(0,top-header)/total)
     elif bottom>view+height:c.yview_moveto(max(0,bottom-height)/total)
     self._render_timeline()
+ def _timeline_reveal_packet(self):
+    if self._timeline_collapsed:return
+    self._timeline_reveal_row()
+    item=next(((clip,start,end) for clip,d,start,end in self._timeline_layout() if clip['uid']==self.timeline_selected),None)
+    if item is None:return
+    clip,start,end=item;duration=end-start;factor=display_fonts(self).dpi/96
+    canvas=self.timeline_canvas;width=max(160,canvas.winfo_width()/factor);margin=self._timeline_geometry()[0]/factor
+    if duration>0 and duration*self._timeline_scale<48:
+      self._timeline_fit=False;self._timeline_scale=min(1e8,max(self._timeline_scale,min(180,max(24,width-margin-24))/duration))
+      self._render_timeline()
+    scale=self._timeline_scale;left=canvas.canvasx(0)/factor;right=left+width
+    first=margin+start*scale;last=margin+end*scale
+    if first<left+margin+6 or first>right-12 or last>right-6:
+      extent=max(width,self._timeline_duration()*scale+margin+15)
+      canvas.xview_moveto(max(0.,first-margin-12)/max(1.,extent))
+      self._render_timeline()
  def _timeline_layout(self):
     sources={d['uid']:d for d in self.datasets};result=[]
     # Row offsets move all packages together without changing their durations.
@@ -935,13 +951,13 @@ class TraceDock(tk.Tk):
         for entry in self._plot_series(limited=False):
           if entry['row_uid']==row['uid'] and entry['dataset']['uid']==dataset_uid and entry['name'] in channels:
             self._track_axes[entry['track']]=self._channel_axes.get((dataset_uid,entry['name']),saved[entry['name']]['axis'])
-      self._timeline_changed();self.status.set('CSV satır adları, kanal birimleri ve Y eksenleri yüklendi');return
+      self._timeline_changed();self.after_idle(self._timeline_reveal_packet);self.status.set('CSV satır adları, kanal birimleri ve Y eksenleri yüklendi');return
     if new_row:row_uid=self._new_timeline_row()['uid']
     row=next((row for row in self.timeline_rows if row['uid']==(row_uid or self.timeline_row)),None)
     if row is None:return
     if not any(clip.get('row_uid',self.timeline_rows[0]['uid'])==row['uid'] for clip in self.timeline):self._adopt_first_packet_name(row,d)
     clip={'uid':uuid.uuid4().hex,'dataset_uid':dataset_uid,'row_uid':row['uid'],'channels':list(dict.fromkeys(names))};self.timeline.append(clip);self.timeline_selected=clip['uid'];self.timeline_row=row['uid']
-    self._timeline_changed();self.after_idle(self._timeline_reveal_row);self.status.set(f"{d['name']} • {len(clip['channels'])} kanal → {row['name']}")
+    self._timeline_changed();self.after_idle(self._timeline_reveal_packet);self.status.set(f"{d['name']} • {len(clip['channels'])} kanal → {row['name']}")
  def timeline_all(self):
     if not self.datasets:return
     clips=[{'uid':uuid.uuid4().hex,'dataset_uid':d['uid'],'row_uid':self.timeline_row,'channels':[n for n in d['channels'] if n in d['_selected']]} for d in self.datasets if d['_selected']]
@@ -992,7 +1008,7 @@ class TraceDock(tk.Tk):
     title_y=7+ui_font(self,9,'bold').metrics('linespace')/factor/2;detail_y=row_height-6-ui_font(self,8).metrics('linespace')/factor/2
     self.timeline_total.set(f'{len(self.timeline_rows)} satır • {len(layout)} paket • Toplam: {elapsed_text(total)}')
     if self._timeline_fit:self._timeline_scale=(width-margin-15)/max(total,1e-9)
-    scale=self._timeline_scale;extent=max(width,total*scale+margin+15);content_height=max(height,28+row_height*len(self.timeline_rows));c.configure(scrollregion=(0,0,extent*factor,content_height*factor));self._timeline_rects=[]
+    scale=self._timeline_scale;extent=max(width,total*scale+margin+15);content_height=max(height,28+row_height*len(self.timeline_rows));c.configure(scrollregion=(0,0,extent*factor,content_height*factor));self._timeline_rects=[];self._timeline_time_rects={}
     left=c.canvasx(0)/factor;right=left+width;top=c.canvasy(0)/factor;bottom=top+height;row_indices={r['uid']:i for i,r in enumerate(self.timeline_rows)}
     for row in self.timeline_rows:
       y=28+row_indices[row['uid']]*row_height
@@ -1000,7 +1016,8 @@ class TraceDock(tk.Tk):
       c.create_rectangle(left,y,right,y+row_height,fill='#e8f4f5' if row['uid']==self.timeline_row else '#ffffff',outline='#d9e4ed')
       if not any(cl.get('row_uid',self.timeline_rows[0]['uid'])==row['uid'] for cl in self.timeline):c.create_text(max(margin+12,left+margin+12),y+row_height/2,text='Boş satır • Sağ tıkla veri ekleyin veya bir paketi buraya sürükleyin',fill='#708798',anchor='w',font=ui_font(self,9))
     for i,(clip,d,start,end) in enumerate(layout):
-      row_uid=clip.get('row_uid',self.timeline_rows[0]['uid']);y=28+row_indices[row_uid]*row_height;x1=margin+start*scale;x2=margin+end*scale;y1=y+3;y2=y+row_height-3;self._timeline_rects.append((clip['uid'],row_uid,x1*factor,x2*factor,y1*factor,y2*factor))
+      row_uid=clip.get('row_uid',self.timeline_rows[0]['uid']);y=28+row_indices[row_uid]*row_height;x1=margin+start*scale;x2=max(x1+10,margin+end*scale);y1=y+3;y2=y+row_height-3;self._timeline_rects.append((clip['uid'],row_uid,x1*factor,x2*factor,y1*factor,y2*factor))
+      self._timeline_time_rects[clip['uid']]=((margin+start*scale)*factor,(margin+end*scale)*factor)
       if x2<left+margin or x1>right or y2<top+28 or y1>bottom:continue
       hidden=clip.get('hidden',False) or self._timeline_row_info(row_uid).get('hidden',False);color='#8c9aa7' if hidden else PALETTE[row_indices[row_uid]%len(PALETTE)];selected=clip['uid']==self.timeline_selected
       rounded_rect(c,x1,y1,x2,y2,r=6,fill='#edf0f3' if hidden else '#d7efee' if selected else '#eaf2f8',outline='#c7d0d8' if hidden else '#007f85' if selected else '#cbdbe7',width=2 if selected else 1)
@@ -1032,11 +1049,18 @@ class TraceDock(tk.Tk):
     self.timeline_canvas.delete('row_tip');self._timeline_tip_row=None
  def _timeline_hover(self,event):
     c=self.timeline_canvas;uid=self._timeline_row_at(event);margin,header,row_height=self._timeline_geometry();factor=display_fonts(self).dpi/96
-    if uid is None or event.x>=margin or self._timeline_row_drag is not None or self._timeline_drag is not None or self._timeline_packet_drag is not None:
+    if uid is None or self._timeline_row_drag is not None or self._timeline_drag is not None or self._timeline_packet_drag is not None:
       self._timeline_hide_tip();return
-    name=self._timeline_row_info(uid)['name']
-    if self._timeline_title(name,margin-28*factor)==name:
-      self._timeline_hide_tip();return
+    if event.x>=margin:
+      packet=self._timeline_hit(event)
+      item=next(((clip,d,start,end) for clip,d,start,end in self._timeline_layout() if clip['uid']==packet),None)
+      if item is None:self._timeline_hide_tip();return
+      clip,d,start,end=item;uid=('packet',packet);names=self._clip_channels(clip,d)
+      name=d['name']+' / '+(', '.join(names))+f'\n{elapsed_text(start)} → {elapsed_text(end)}\nSüre: {elapsed_text(end-start)}'
+    else:
+      name=self._timeline_row_info(uid)['name']
+      if self._timeline_title(name,margin-28*factor)==name:
+        self._timeline_hide_tip();return
     if getattr(self,'_timeline_tip_row',None)==uid and c.find_withtag('row_tip'):return
     self._timeline_hide_tip();self._timeline_tip_row=uid
     left=c.canvasx(0);top=c.canvasy(0);width=c.winfo_width();height=c.winfo_height()
@@ -1055,7 +1079,12 @@ class TraceDock(tk.Tk):
     margin,header,row_height=self._timeline_geometry()
     if event.x<margin or event.y<header:return None
     x=self.timeline_canvas.canvasx(event.x);y=self.timeline_canvas.canvasy(event.y)
-    return next((uid for uid,row,a,b,c,d in self._timeline_rects if a<=x<b and c<=y<d),None)
+    matches=[uid for uid,row,a,b,c,d in self._timeline_rects if a<=x<b and c<=y<d]
+    # Expanded hit areas may overlap: prefer the actual time interval closest to the pointer.
+    def distance(uid):
+      a,b=self._timeline_time_rects[uid]
+      return max(a-x,x-b,0),uid!=self.timeline_selected
+    return min(matches,key=distance) if matches else None
  def _timeline_press(self,event):
     row=self._timeline_row_at(event);self._timeline_row_drag=None;self._timeline_packet_drag=None;self._timeline_snap_preview=None
     if row is not None:self.timeline_row=row

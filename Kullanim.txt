@@ -302,3 +302,9 @@ Arayüz işlev testi çalıştırılmadı.
 TDMS dosyası artık ağdan veya diskten büyük bloklarla tek seferde uygulamanın geçici alanına alınır. Tüm kanallar yerel dosyadan tek geçişte birlikte çözümlenir; kanal başına ağ üzerinde küçük okuma işlemleri tekrarlanmaz. Kanal dizileri geçici NPY dosyalarına parça parça yazılır; tüm kaynak dosyanın RAMe yüklenmesi gerekmez.
 Kopyalama ve çözümleme sırasında ilerleme ve iptal desteği vardır. Başarı, hata ve iptal sonrasında uygulamanın geçici dosyaları temizlenir. Kanalların sayısal değerleri, birimleri, özgün Hz bilgileri ve çarpan ayarları korunur. CSV kaydetme sorusu eklenmez. Kaynak dosya kopyalama sırasında değişirse içe aktarma durdurulur.
 Arayüz işlev testi çalıştırılmadı.
+
+
+## Uzun çizelgelerde kısa paket görünürlüğü (v1.0.37)
+Saatler süren zaman çizelgesindeki saniyelik paketler artık en az 10 mantıksal piksel genişliğinde çizilir ve seçilebilir. Bu yalnızca görünür tıklama alanıdır; gerçek başlangıç, bitiş, süre, grafik ve CSV örnekleri değişmez. Çakışan tıklama alanlarında gerçek zaman aralığına en yakın paket seçilir.
+Yeni eklenen paket ekranda çok kısa kalıyorsa zaman çizelgesi otomatik yakınlaşır ve pakete kayar. Tüm çizelgeye dönmek için Sığdır düğmesini kullanın. Paket üzerinde bekleyince kaynak/kanal adı ve gerçek başlangıç, bitiş ve süre bilgileri görünür. Daraltılmış çizelge kendiliğinden genişlemez.
+Doğrulama: açık uygulamada kanalın mevcut satıra eklenmesi ve çift tıklamayla grafikte incelenmesi kontrol edildi. Dokuz saatlik çizelgeye 23,6 saniyelik paket ekleme, yeni satıra ekleme, asgari genişlik, otomatik yakınlaşma ve zamanların değişmemesi uygulama bileşenleriyle doğrulandı.
