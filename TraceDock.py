@@ -20,7 +20,7 @@ from tracedock_layout import AdaptiveCombobox, AdaptiveTreeview, AutoScrollbar, 
 import numpy as np
 from scipy.signal import butter, sosfiltfilt
 from PIL import Image, ImageTk
-from nptdms import TdmsFile
+from tracedock_tdms import stage_tdms
 import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib.figure import Figure
@@ -31,7 +31,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.35'
+APP_VERSION='1.0.36'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -1372,28 +1372,7 @@ class TraceDock(tk.Tk):
     if not self._pending_tdms:return
     path=self._pending_tdms.pop(0)
     def read(progress,cancel):
-      # Only application-owned temporary files are created during import.
-      # Arrays are staged one channel at a time, then loaded for display.
-      cache=tempfile.TemporaryDirectory(prefix='tracedock-tdms-')
-      try:
-        channels=[]
-        with TdmsFile.open(path) as tdms:
-          source=[(group,ch) for group in tdms.groups() for ch in group.channels()]
-          for i,(group,ch) in enumerate(source):
-            check_cancel(cancel);props=ch.properties;rate=''
-            try:
-              increment=float(props.get('wf_increment',0));hz=1/increment if increment>0 else 0
-              if math.isfinite(hz) and hz>0:rate=format(hz,'.17g')
-            except (ValueError,TypeError,ZeroDivisionError):pass
-            data=np.asarray(ch[:]);check_cancel(cancel)
-            if data.dtype.kind not in 'iufb':raise ValueError(f'{group.name}/{ch.name} sayısal olmayan veri içeriyor.')
-            target=Path(cache.name)/f'channel-{i}.npy';np.save(target,data,allow_pickle=False);del data
-            channels.append({'name':f'{group.name}/{ch.name}','cache_path':str(target),'unit':str(props.get('unit_string',props.get('unit',''))),'id':str(props.get('NI_ChannelNumber',ch.name)),'default_rate':rate})
-            progress((i+1)/max(1,len(source)),f'{i+1}/{len(source)} kanal okundu')
-        if not channels:raise ValueError('TDMS dosyasında kanal bulunamadı.')
-        check_cancel(cancel);return channels,cache
-      except BaseException:
-        cache.cleanup();raise
+      return stage_tdms(path,progress,lambda:check_cancel(cancel))
     def loaded(result):
       channels,cache=result
       try:settings=self._tdms_settings(channels)

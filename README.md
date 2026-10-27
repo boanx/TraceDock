@@ -312,3 +312,9 @@ CSV ekle ile açıldığında birimler ve eksen atamaları otomatik yüklenir. B
 Başlıktan sonraki TraceDock, Unit ve CommonRate satırları üst bilgidir; ölçüm örneği değildir. Başka uygulamalarda sayısal veri okurken bu üç satırı atlayın. CSV ayıracı ve ondalık seçimi geçerliliğini korur. Yanındaki .metadata.json işlem kaydı da üretilmeye devam eder.
 Bu bilgiler bu sürüm ve sonrası ile yeniden dışa aktarılan CSVlerde bulunur. Önceki sürümlerin kaydetmediği eksen atamaları geri getirilemez. Aktarılan dosya kanal tablosudur; özgün paket sınırlarını yeniden oluşturmaz.
 Arayüz işlev testi çalıştırılmadı.
+
+
+## TDMS içe aktarma hızı (v1.0.36)
+TDMS dosyası artık ağdan veya diskten büyük bloklarla tek seferde uygulamanın geçici alanına alınır. Tüm kanallar yerel dosyadan tek geçişte birlikte çözümlenir; kanal başına ağ üzerinde küçük okuma işlemleri tekrarlanmaz. Kanal dizileri geçici NPY dosyalarına parça parça yazılır; tüm kaynak dosyanın RAMe yüklenmesi gerekmez.
+Kopyalama ve çözümleme sırasında ilerleme ve iptal desteği vardır. Başarı, hata ve iptal sonrasında uygulamanın geçici dosyaları temizlenir. Kanalların sayısal değerleri, birimleri, özgün Hz bilgileri ve çarpan ayarları korunur. CSV kaydetme sorusu eklenmez. Kaynak dosya kopyalama sırasında değişirse içe aktarma durdurulur.
+Arayüz işlev testi çalıştırılmadı.
