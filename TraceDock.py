@@ -21,6 +21,7 @@ import numpy as np
 from scipy.signal import butter, sosfiltfilt
 from PIL import Image, ImageTk
 from tracedock_tdms import stage_tdms
+from tracedock_project import save_project as write_tdoc, load_project as read_tdoc, freeze as project_key
 import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib.figure import Figure
@@ -31,7 +32,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.38'
+APP_VERSION='1.0.39'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -584,7 +585,7 @@ def elapsed_text(seconds):
 
 class TraceDock(tk.Tk):
  def __init__(self):
-    super().__init__(); self.title('TraceDock'); window_width=min(1500,max(640,self.winfo_screenwidth()-60));window_height=min(920,max(480,self.winfo_screenheight()-100));self.geometry(f'{window_width}x{window_height}');self.minsize(min(900,window_width),min(620,window_height)); self.configure(bg='#e8eff5')
+    super().__init__(); self._project_path=None; self.title('TraceDock'); window_width=min(1500,max(640,self.winfo_screenwidth()-60));window_height=min(920,max(480,self.winfo_screenheight()-100));self.geometry(f'{window_width}x{window_height}');self.minsize(min(900,window_width),min(620,window_height)); self.configure(bg='#e8eff5')
     self.timeline_rows=[{'uid':uuid.uuid4().hex,'name':'Satır 1'}];self.timeline_row=self.timeline_rows[0]['uid'];self._timeline_row_number=1;self.timeline=[];self.timeline_selected=None;self._timeline_drag=None;self._timeline_row_drag=None;self._timeline_packet_drag=None;self._timeline_snap_preview=None;self.timeline_snap=tk.BooleanVar(value=True);self._timeline_scale=1.;self._timeline_fit=True;self.timeline_match=tk.StringVar(value='Seçili kanal sırasına göre');self.datasets=[]; self.active=0; self.selected=set();self._tree_anchor=None; self.probes={};self.legend_visible=tk.BooleanVar(value=True);self._graph_button=None;self._channel_axes={};self._track_axes={};self._track_colors={};self._y_axes={};self._reset_axis_slots=set();self._legend_artist=None;self._legend_targets=[];self.mouse_data=None; self.span=None; self.span_artist=None; self._span_generation=0; self.drag_mode=None; self.drag_start=None; self.click_start=None; self._guide_artists=[]; self.sort_state={}
     icon_path=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))/'tracedock.ico'
     self._window_icons={}
@@ -640,6 +641,15 @@ class TraceDock(tk.Tk):
     self._sidebar_rail.bind('<Button-1>',lambda e:self._toggle_sidebar_panel())
     self._sidebar_rail.bind('<Return>',lambda e:self._toggle_sidebar_panel())
     self._sidebar_rail.bind('<space>',lambda e:self._toggle_sidebar_panel())
+    projects=ResponsiveButtonBar(left,bg='#f4f8fb');projects.pack(fill='x',padx=10,pady=(0,6))
+    for label,command in [('Proje aç',self.open_project),('Projeyi kaydet',self.save_project)]:
+      button=self._button(projects,label,command);button.configure(padx=7,pady=5);projects.add(button)
+    menubar=tk.Menu(self);project_menu=tk.Menu(menubar,tearoff=False)
+    project_menu.add_command(label='Proje aç…',accelerator='Ctrl+O',command=self.open_project)
+    project_menu.add_command(label='Projeyi kaydet',accelerator='Ctrl+S',command=self.save_project)
+    project_menu.add_command(label='Projeyi farklı kaydet…',accelerator='Ctrl+Shift+S',command=lambda:self.save_project(save_as=True))
+    menubar.add_cascade(label='Proje',menu=project_menu);self.configure(menu=menubar)
+    self.bind('<Control-o>',lambda e:(self.open_project(),'break')[1]);self.bind('<Control-s>',lambda e:(self.save_project(),'break')[1]);self.bind('<Control-Shift-S>',lambda e:(self.save_project(save_as=True),'break')[1])
     file_actions=ResponsiveButtonBar(left,bg='#f4f8fb');file_actions.pack(fill='x',padx=10)
     for label,command in [('Exlab dosyası ekle',self.add_strain),('CSV ekle',self.add_csv),('TDMS ekle',self.add_tdms),('Kaldır',self.remove_file)]:
       button=self._button(file_actions,label,command);button.configure(padx=7,pady=5);file_actions.add(button)
@@ -2157,6 +2167,124 @@ class TraceDock(tk.Tk):
         for item in items:writer.writerow(self.table.item(item,'values'))
       self.status.set(f'{len(items)} kanal istatistiği dışa aktarıldı • {Path(p).name}')
     except Exception as exc:messagebox.showerror('CSV dışa aktarılamadı',str(exc))
+ def _project_snapshot(self):
+    arrays={};seen={}
+    def array_ref(values):
+      key=id(values)
+      if key not in seen:
+        name=f'arrays/{len(arrays)}.npy';seen[key]=name;arrays[name]=np.asarray(values)
+      return seen[key]
+    def axis_ref(axis):
+      if isinstance(axis,SampleTimeAxis):return {'kind':'regular',**{key:getattr(axis,key) for key in SampleTimeAxis.__slots__}}
+      return {'kind':'array','ref':array_ref(axis)}
+    datasets=[]
+    fields=('uid','name','path','source_kind','_original_name','xname','x_is_date','units','ids','grid_rate','_base_rate','multipliers','data_multiplier','_tracedock_channels')
+    for d in self.datasets:
+      item={k:d[k] for k in fields if k in d};item['selected']=list(d['_selected'])
+      item['channels']={n:array_ref(v) for n,v in d['_base_channels'].items()}
+      item['base_x']=axis_ref(d['_base_x']);item['clocks']={n:axis_ref(d['_channel_x'][n]) for n in d['channels']};item['rates']=dict(d['channel_rates']);datasets.append(item)
+    state={'datasets':datasets,'rows':self.timeline_rows,'clips':self.timeline,'row_number':self._timeline_row_number,'row':self.timeline_row,'clip':self.timeline_selected,'active':self.active,'channel_axes':list(self._channel_axes.items()),'track_axes':list(self._track_axes.items()),'colors':list(self._track_colors.items()),'probes':list(self.probes.items()),'match':self.timeline_match.get(),'snap':self.timeline_snap.get(),'legend':self.legend_visible.get(),'decimal':self.decimal.get(),'limit':self.limit.get(),'search':self.filter.get(),'filtered':self.filtered_view.get(),'filter':self._active_filter,'xlim':self.ax.get_xlim(),'ylim':{k:a.get_ylim() for k,a in self._y_axes.items()},'span':self.span,'timeline_fit':self._timeline_fit,'timeline_scale':self._timeline_scale,'timeline_x':self.timeline_canvas.xview()[0],'timeline_y':self.timeline_canvas.yview()[0],'timeline_collapsed':self._timeline_collapsed,'sidebar_collapsed':self._sidebar_collapsed,'body_fraction':self._sidebar_body.fraction,'graph_fraction':self.graph_panels.fraction,'work_fraction':self.workarea.fraction}
+    state=json.loads(json.dumps(state,ensure_ascii=False,allow_nan=False,default=lambda value:value.item() if isinstance(value,np.generic) else list(value)))
+    return {'format':'TraceDock-project','schema':1,'application_version':APP_VERSION,'arrays':list(arrays),'state':state},arrays
+ def save_project(self,save_as=False):
+    if self._job is not None:self.status.set('Proje kaydı için devam eden işlemin bitmesini bekleyin');return
+    path=None if save_as else self._project_path
+    if not path:path=filedialog.asksaveasfilename(title='TraceDock projesini kaydet',defaultextension='.tdoc',initialfile=Path(self._project_path).name if self._project_path else 'calisma.tdoc',filetypes=[('TraceDock projesi','*.tdoc')])
+    if not path:return
+    try:manifest,arrays=self._project_snapshot()
+    except Exception as exc:messagebox.showerror('Proje kaydedilemedi',str(exc),parent=self);return
+    def work(progress,cancel):write_tdoc(path,manifest,arrays,progress,lambda:check_cancel(cancel))
+    def complete(result):
+      self._project_path=str(path);self.title('TraceDock — '+Path(path).name);self.status.set('Proje kaydedildi • veriler dahil: '+Path(path).name)
+    self._start_job('TDOC projesi kaydediliyor',work,complete)
+ def _prepare_project(self,path,progress,cancel):
+    manifest,arrays=read_tdoc(path,lambda f,m:progress(f*.45,m),lambda:check_cancel(cancel));state=manifest['state'];datasets=[];uids=set()
+    def finite(value):
+      value=float(value)
+      if not math.isfinite(value):raise ValueError('Proje içinde geçersiz sayısal ayar.')
+      return value
+    def axis(info):
+      if info['kind']=='array':return arrays[info['ref']]
+      if info['kind']!='regular' or int(info['count'])<0 or finite(info['rate'])<=0 or finite(info['stride'])<=0:raise ValueError('Geçersiz proje zaman ekseni.')
+      return SampleTimeAxis(int(info['count']),finite(info['rate']),finite(info['offset']),finite(info['stride']),finite(info['origin']))
+    for i,item in enumerate(state['datasets']):
+      check_cancel(cancel)
+      if not isinstance(item['uid'],str) or item['uid'] in uids or not isinstance(item['name'],str):raise ValueError('Geçersiz proje veri kaydı.')
+      uids.add(item['uid']);d={k:v for k,v in item.items() if k not in ('channels','selected','base_x','clocks','rates')}
+      base={n:arrays[ref] for n,ref in item['channels'].items()}
+      if not base or not all(isinstance(n,str) for n in base):raise ValueError('Proje kanal listesi boş veya geçersiz.')
+      for factor in [d.get('data_multiplier',1),*d.get('multipliers',{}).values()]:finite(factor)
+      d['_base_channels']=base;d['channels']=dict(base);d['_base_x']=d['x']=axis(item['base_x']);d['_selected']=set(item['selected'])
+      if not d['_selected']<=base.keys():raise ValueError('Seçili proje kanalı bulunamadı.')
+      prepare_dataset(d,lambda f,m:progress(.45+.4*(i+f)/max(1,len(state['datasets'])),m),cancel)
+      for n in base:
+        rate=finite(item['rates'][n]);clock=axis(item['clocks'][n])
+        if rate<=0 or len(clock)!=len(d['channels'][n]):raise ValueError('Proje örnekleme hızı veya kanal uzunluğu geçersiz.')
+        d['channel_rates'][n]=rate;d['_channel_x'][n]=clock
+      datasets.append(d)
+    rows=state['rows'];row_ids={r['uid'] for r in rows};sources={d['uid']:d for d in datasets};clips=state['clips'];clip_ids={c['uid'] for c in clips}
+    if not rows or len(row_ids)!=len(rows) or len(clip_ids)!=len(clips):raise ValueError('Geçersiz proje zaman çizelgesi.')
+    for r in rows:
+      if not isinstance(r['uid'],str) or not isinstance(r['name'],str) or finite(r.get('start_offset',0))<0:raise ValueError('Geçersiz proje satırı.')
+    for c in clips:
+      if c['dataset_uid'] not in sources or c['row_uid'] not in row_ids or not isinstance(c['uid'],str):raise ValueError('Proje paketi kaynağı veya satırı bulunamadı.')
+      if not c['channels'] or not set(c['channels'])<=sources[c['dataset_uid']]['channels'].keys():raise ValueError('Proje paketi kanalı bulunamadı.')
+      finite(c.get('time_offset',0))
+    for field in ('channel_axes','track_axes','colors','probes'):
+      state[field]={project_key(k):v for k,v in state[field]}
+    for key,slot in state['channel_axes'].items():
+      if key[0] not in sources or key[1] not in sources[key[0]]['channels'] or slot not in Y_AXIS_LABELS:raise ValueError('Geçersiz kanal ekseni.')
+    for key,slot in state['track_axes'].items():
+      if key[0] not in row_ids or slot not in Y_AXIS_LABELS:raise ValueError('Geçersiz eğri ekseni.')
+    from matplotlib.colors import is_color_like
+    if any(k[0] not in row_ids or not is_color_like(v) for k,v in state['colors'].items()):raise ValueError('Geçersiz eğri rengi.')
+    contexts={d['uid']:d for d in datasets};contexts.update({'clip:'+c['uid']:sources[c['dataset_uid']] for c in clips})
+    for key,probes in state['probes'].items():
+      if key[0] not in contexts or key[1] not in contexts[key[0]]['channels'] or len(probes)>20:raise ValueError('Geçersiz prob kaydı.')
+      for p in probes:
+        if not isinstance(p['index'],int) or not 0<=p['index']<len(contexts[key[0]]['channels'][key[1]]) or not isinstance(p['label'],bool):raise ValueError('Geçersiz prob konumu.')
+    if state['match'] not in ('Seçili kanal sırasına göre','Kanal adına göre','Sütun sırasına göre','Ayrı çizgiler') or state['decimal'] not in ('.',',') or state['limit'] not in ('12','30','100','Tümü'):raise ValueError('Geçersiz proje görünümü.')
+    for bounds in [state['xlim'],*state['ylim'].values()]+([state['span']] if state['span'] is not None else []):
+      if len(bounds)!=2 or finite(bounds[0])==finite(bounds[1]):raise ValueError('Geçersiz proje grafik aralığı.')
+    for key in ('timeline_x','timeline_y','body_fraction','graph_fraction','work_fraction'):
+      if not 0<=finite(state[key])<=1:raise ValueError('Geçersiz proje pencere düzeni.')
+    if finite(state['timeline_scale'])<=0:raise ValueError('Geçersiz çizelge ölçeği.')
+    if not isinstance(state['active'],int) or not isinstance(state['row_number'],int) or state['row_number']<1 or not isinstance(state['search'],str):raise ValueError('Geçersiz proje seçimi.')
+    for key in ('snap','legend','filtered','timeline_fit','timeline_collapsed','sidebar_collapsed'):
+      if not isinstance(state[key],bool):raise ValueError('Geçersiz proje görünüm seçeneği.')
+    if not set(state['ylim'])<=Y_AXIS_LABELS.keys():raise ValueError('Geçersiz proje Y ekseni görünümü.')
+    spec=tuple(state['filter'])
+    if len(spec)!=3 or spec[0] not in ('Low pass','High pass','Band pass'):raise ValueError('Geçersiz proje filtresi.')
+    if finite(spec[1])<=0 or (spec[0]=='Band pass' and (spec[2] is None or finite(spec[2])<=finite(spec[1]))):raise ValueError('Geçersiz proje filtre frekansı.')
+    if state['filtered']:
+      for i,d in enumerate(datasets):
+        for n,raw in d['_base_channels'].items():
+          values=frequency_filter(raw,d['channel_rates'][n],spec,cancel);stats,levels=build_channel_cache(values,cancel)
+          d.setdefault('_smoothed',{})[n]={'source':raw,'rate':d['channel_rates'][n],'spec':spec,'values':values,'stats':stats,'levels':levels}
+        progress(.85+.15*(i+1)/max(1,len(datasets)),'Proje filtresi hazırlanıyor')
+    check_cancel(cancel);return state,datasets
+ def _apply_project(self,path,result):
+    state,datasets=result;self.datasets=datasets;self.active=min(max(0,int(state['active'])),max(0,len(datasets)-1));self.selected=set(datasets[self.active]['_selected']) if datasets else set()
+    self.timeline_rows=state['rows'];self.timeline=state['clips'];self.timeline_row=state['row'] if state['row'] in {r['uid'] for r in self.timeline_rows} else self.timeline_rows[0]['uid'];self.timeline_selected=state['clip'] if state['clip'] in {c['uid'] for c in self.timeline} else None;self._timeline_row_number=max(int(state['row_number']),len(self.timeline_rows))
+    self._channel_axes=state['channel_axes'];self._track_axes=state['track_axes'];self._track_colors=state['colors'];self.probes=state['probes'];self.timeline_match.set(state['match']);self.timeline_snap.set(state['snap']);self.legend_visible.set(state['legend']);self.decimal.set(state['decimal']);self.limit.set(state['limit']);self.filter.set(state['search'])
+    self._active_filter=tuple(state['filter']);self.filter_type.set(self._active_filter[0]);self.filter_cutoff.set(str(self._active_filter[1]));self.filter_upper.set(str(self._active_filter[2] or 25));self.filtered_view.set(state['filtered']);self._update_filter_fields()
+    self._timeline_drag=None;self._timeline_row_drag=None;self._timeline_packet_drag=None;self._timeline_snap_preview=None;self.drag_mode=None;self._graph_button=None
+    self._timeline_fit=state['timeline_fit'];self._timeline_scale=state['timeline_scale'];self.span=tuple(state['span']) if state['span'] is not None else None;self.mouse_data=None;self._span_generation+=1;self._reset_axis_slots=set(Y_AXIS_LABELS)
+    self._sidebar_body.fraction=state['body_fraction'];self.graph_panels.fraction=state['graph_fraction'];self.workarea.fraction=state['work_fraction']
+    self.redraw_all();self.ax.set_xlim(*state['xlim'])
+    for slot,bounds in state['ylim'].items():
+      if slot in self._y_axes:self._y_axes[slot].set_ylim(*bounds)
+    if self._timeline_collapsed!=state['timeline_collapsed']:self._toggle_timeline_panel()
+    if self._sidebar_collapsed!=state['sidebar_collapsed']:self._toggle_sidebar_panel()
+    def restore_view():
+      self.timeline_canvas.xview_moveto(state['timeline_x']);self.timeline_canvas.yview_moveto(state['timeline_y']);self._render_timeline();self.canvas.draw_idle()
+    self.after_idle(restore_view);self._project_path=str(path);self.title('TraceDock — '+Path(path).name);self.status.set('Proje açıldı • '+Path(path).name)
+ def open_project(self,path=None):
+    if self._job is not None:self.status.set('Proje açmak için devam eden işlemin bitmesini bekleyin');return
+    if path is None:path=filedialog.askopenfilename(title='TraceDock projesini aç',filetypes=[('TraceDock projesi','*.tdoc')])
+    if not path:return
+    if self.datasets and not messagebox.askyesno('Proje aç','Açılacak proje mevcut çalışmanın yerini alacak. Kaydetmediğiniz değişiklikler kaybolur. Devam edilsin mi?',parent=self):return
+    self._start_job('TDOC projesi açılıyor',lambda progress,cancel:self._prepare_project(path,progress,cancel),lambda result:self._apply_project(path,result))
  def save_config(self):
     payload={'format':'TraceDock-config-v2','view':{'legend_visible':self.legend_visible.get()}}
     path=filedialog.asksaveasfilename(title='Görünüm ayarlarını kaydet',defaultextension='.json',initialfile='tracedock-config.json',filetypes=[('JSON ayarları','*.json')])
@@ -2203,7 +2331,10 @@ if __name__=='__main__':
   except Exception:
    Path(sys.argv[2]).write_text(json.dumps({'status':'FAIL','error':traceback.format_exc()}),encoding='utf-8');sys.exit(1)
   sys.exit(0)
- try:TraceDock().mainloop()
+ try:
+  app=TraceDock()
+  if len(sys.argv)==2 and Path(sys.argv[1]).suffix.casefold()=='.tdoc':app.after(100,lambda:app.open_project(sys.argv[1]))
+  app.mainloop()
  except Exception as exc:
   try:messagebox.showerror('TraceDock hata',str(exc)+'\n\n'+traceback.format_exc())
   except Exception:pass
