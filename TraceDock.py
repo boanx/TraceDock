@@ -31,7 +31,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.37'
+APP_VERSION='1.0.38'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -1360,9 +1360,9 @@ class TraceDock(tk.Tk):
     self._start_job('Filtre hazırlanıyor ('+filter_description(spec)+')',work,complete)
 
  def _tdms_settings(self,channels):
-    win=tk.Toplevel(self);win.title('TDMS kanal hızları ve çarpanları');size_dialog(win,self,860,600);win.transient(self);win.grab_set();win.configure(bg='#f4f8fb')
-    self._wrapped_label(win,text='Hız metaverisi otomatik doldurulur. Her kanalın Hz ve çarpanını düzenleyin; frekanslar içe aktarımda korunur.',fg='#203449',bg='#f4f8fb',font=ui_font(self,11,'bold')).pack(fill='x',padx=14,pady=(14,8))
-    frame=tk.Frame(win,bg='#f4f8fb');frame.pack(fill='both',expand=True,padx=14,pady=8)
+    win=tk.Toplevel(self);win.withdraw();win.title('TDMS kanal hızları ve çarpanları');win.transient(self);win.configure(bg='#f4f8fb');win.columnconfigure(0,weight=1);win.rowconfigure(1,weight=1)
+    self._wrapped_label(win,text='Hız metaverisi otomatik doldurulur. Her kanalın Hz ve çarpanını düzenleyin; frekanslar içe aktarımda korunur.',fg='#203449',bg='#f4f8fb',font=ui_font(self,11,'bold')).grid(row=0,column=0,sticky='ew',padx=14,pady=(14,8))
+    frame=tk.Frame(win,bg='#f4f8fb');frame.grid(row=1,column=0,sticky='nsew',padx=14,pady=8)
     tree=AdaptiveTreeview(frame,columns=('channel','rate','factor'),show='headings');tree.heading('channel',text='Grup / kanal');tree.heading('rate',text='Örnekleme hızı (Hz)');tree.heading('factor',text='Çarpan');tree.column('channel',width=500);tree.column('rate',width=170,anchor='center');tree.column('factor',width=130,anchor='center');self._pack_measurement_table(tree,frame)
     for i,ch in enumerate(channels):tree.insert('','end',iid=str(i),values=(ch['name'],ch['default_rate'],'1'))
     editor={'widget':None}
@@ -1378,7 +1378,7 @@ class TraceDock(tk.Tk):
       ent.bind('<Return>',save);ent.bind('<FocusOut>',save);ent.bind('<Escape>',lambda _e:(ent.destroy(),editor.update(widget=None)))
     tree.bind('<Double-1>',edit)
     result={'settings':None}
-    buttons=tk.Frame(win,bg='#f4f8fb');buttons.pack(fill='x',padx=14,pady=(4,14))
+    buttons=tk.Frame(win,bg='#f4f8fb');buttons.grid(row=2,column=0,sticky='ew',padx=14,pady=(4,14))
     def accept():
       for i in range(len(channels)):
         if editor['widget'] is not None:editor['widget'].event_generate('<Return>')
@@ -1391,6 +1391,10 @@ class TraceDock(tk.Tk):
       win.destroy()
     self._button(buttons,'Vazgeç',win.destroy).pack(side='right')
     self._button(buttons,'Dosyayı ekle',accept).pack(side='right',padx=8)
+    # Size after building controls; reserve the footer independently of the scrolling table.
+    win.update_idletasks();scale=display_fonts(self).dpi/96
+    size_dialog(win,self,round(860*scale),round(600*scale),fit_parent=False)
+    win.deiconify();win.grab_set()
     self.wait_window(win)
     return result['settings']
  def add_tdms(self):

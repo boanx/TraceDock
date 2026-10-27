@@ -308,3 +308,8 @@ Arayüz işlev testi çalıştırılmadı.
 Saatler süren zaman çizelgesindeki saniyelik paketler artık en az 10 mantıksal piksel genişliğinde çizilir ve seçilebilir. Bu yalnızca görünür tıklama alanıdır; gerçek başlangıç, bitiş, süre, grafik ve CSV örnekleri değişmez. Çakışan tıklama alanlarında gerçek zaman aralığına en yakın paket seçilir.
 Yeni eklenen paket ekranda çok kısa kalıyorsa zaman çizelgesi otomatik yakınlaşır ve pakete kayar. Tüm çizelgeye dönmek için Sığdır düğmesini kullanın. Paket üzerinde bekleyince kaynak/kanal adı ve gerçek başlangıç, bitiş ve süre bilgileri görünür. Daraltılmış çizelge kendiliğinden genişlemez.
 Doğrulama: açık uygulamada kanalın mevcut satıra eklenmesi ve çift tıklamayla grafikte incelenmesi kontrol edildi. Dokuz saatlik çizelgeye 23,6 saniyelik paket ekleme, yeni satıra ekleme, asgari genişlik, otomatik yakınlaşma ve zamanların değişmemesi uygulama bileşenleriyle doğrulandı.
+
+
+## TDMS ayar penceresi (v1.0.38)
+TDMS kanal hızları ve çarpanları penceresi artık ana pencere küçük olsa da DPI ölçeğine uygun 860×600 başlangıç alanını hedefler; ekran sınırları korunur. İçerik oluşturulduktan sonra boyutlandırılır. Alt düğmeler ayrı sabit satırda kalır, kanal tablosu kalan alanı kullanır ve kendi içinde kaydırılır.
+Doğrulama: 30 kanallı ayar penceresi normal açılışta görüntülendi; Dosyayı ekle ve Vazgeç düğmelerinin görünür ve tamamıyla pencere sınırları içinde olduğu kontrol edildi.

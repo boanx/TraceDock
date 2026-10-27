@@ -283,12 +283,15 @@ class HorizontalScrollFrame(tk.Frame):
         self.canvas.itemconfigure(self.window, width=width, height=0)
 
 
-def size_dialog(window, parent, width, height):
+def size_dialog(window, parent, width, height, fit_parent=True):
     """Choose an initial dialog size from its parent and available screen space."""
     max_width = max(320, window.winfo_screenwidth()-60)
     max_height = max(240, window.winfo_screenheight()-100)
-    width = min(width, max_width, max(420, int(parent.winfo_width()*.9)))
-    height = min(height, max_height, max(300, int(parent.winfo_height()*.85)))
+    width = min(width, max_width)
+    height = min(height, max_height)
+    if fit_parent:
+        width = min(width, max(420, int(parent.winfo_width()*.9)))
+        height = min(height, max(300, int(parent.winfo_height()*.85)))
     x = max(0, min(max_width-width, parent.winfo_rootx()+(parent.winfo_width()-width)//2))
     y = max(0, min(max_height-height, parent.winfo_rooty()+(parent.winfo_height()-height)//2))
     window.geometry(f'{width}x{height}+{x}+{y}')
