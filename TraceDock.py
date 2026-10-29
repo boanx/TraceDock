@@ -33,7 +33,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.44'
+APP_VERSION='1.0.45'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -187,7 +187,7 @@ def channel_export_series(groups,duration,cancel=None):
     for group in groups:
         check_cancel(cancel);parts=[];cursor=None
         for entry in sorted((item for item in group['segments'] if len(item['x'])),key=lambda item:item['x'][0]):
-            check_cancel(cancel);axis=entry['x'];start=float(axis[0]);end=start+len(axis)/axis.rate
+            check_cancel(cancel);axis=entry['x'];start=float(axis[0]);end=entry.get('sample_end',start+len(axis)/axis.rate)
             tolerance=max(1e-9,4*max(math.ulp(start),math.ulp(cursor or 0.)))
             if cursor is not None and start<cursor-tolerance:
                 raise ValueError('Aynı kanalın paketleri zaman çizelgesinde çakışıyor: '+group['label'])
@@ -218,7 +218,7 @@ def write_csv_export_record(path,groups,rate,lo,hi,count,cancel=None):
         for entry in group['segments']:
             axis=entry['x'];d=entry['dataset'];name=entry['name']
             if not len(axis):continue
-            packets.append({'source_file':Path(d.get('path',d['name'])).name,'source_channel':name,'source_hz':axis.rate,'sample_count':len(axis),'start_s':float(axis[0]),'end_exclusive_s':float(axis[0])+len(axis)/axis.rate,'unit':entry.get('unit',''),'multiplier':float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1)),'filtered':entry.get('filter_spec')})
+            packets.append({'source_file':Path(d.get('path',d['name'])).name,'source_channel':name,'source_hz':d['channel_rates'][name],'sample_count':len(d['_base_channels'][name]),'processing_hz':axis.rate,'processed_sample_count':len(axis),'start_s':float(axis[0]),'end_exclusive_s':entry.get('sample_end',float(axis[0])+len(axis)/axis.rate),'unit':entry.get('unit',''),'multiplier':float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1)),'filtered':entry.get('filter_spec')})
         channels.append({'column':group['label'],**group.get('tracedock',{}),'packets':packets})
     record={'application':APP_NAME,'version':APP_VERSION,'csv_file':Path(path).name,'csv_sha256':digest.hexdigest(),'export_hz':rate,'time_grid_origin_s':0.,'range_s':[lo,hi],'rows':count,'resampling':'zero_order_hold_previous_sample','gap_value':0,'numeric_time_column':'time_s','display_time_column':'time','channels':channels}
     temporary=None
@@ -394,7 +394,7 @@ def build_channel_cache(values,cancel=None):
             size*=4;levels.append((size,indices))
     return (first,last,minimum,maximum),levels
 
-def frequency_filter(values,rate,spec,cancel=None):
+def frequency_filter(values,rate,spec,cancel=None,copy_input=True):
     """Forward/backward Butterworth, with combined -3 dB edges in Hz.
 
     The prototype is order 4 (bandpass becomes order 8 per direction).
@@ -421,7 +421,7 @@ def frequency_filter(values,rate,spec,cancel=None):
         critical=rate/np.pi*np.arctan(warped/factor if mode=='Low pass' else warped*factor)
         kind='lowpass' if mode=='Low pass' else 'highpass'
     sos=butter(4,critical,btype=kind,fs=rate,output='sos')
-    result=np.array(values,dtype=float,copy=True)
+    result=np.array(values,dtype=float,copy=True) if copy_input else np.asarray(values,dtype=float)
     finite=np.isfinite(result)
     boundaries=np.flatnonzero(np.diff(finite,prepend=False,append=False))
     for start,stop in boundaries.reshape(-1,2):
@@ -434,6 +434,22 @@ def frequency_filter(values,rate,spec,cancel=None):
         result[start:stop]=filtered
     check_cancel(cancel);result.flags.writeable=False
     return result
+
+def common_filter_cache(raw,source_rate,target_rate,spec,cancel=None):
+    """Filter on the common maximum-Hz clock, using previous-sample repetition."""
+    if not math.isfinite(source_rate) or not math.isfinite(target_rate) or not 0<source_rate<=target_rate:raise ValueError('Geçersiz filtre örnekleme hızı.')
+    if source_rate==target_rate:
+        values=frequency_filter(raw,target_rate,spec,cancel)
+    else:
+        count=max(0,export_grid_index(len(raw)/source_rate,target_rate));held=np.empty(count,dtype=float)
+        for start in range(0,count,131072):
+            check_cancel(cancel);stop=min(count,start+131072);position=np.arange(start,stop,dtype=float)/target_rate*source_rate
+            tolerance=np.maximum(1e-9,4*np.abs(np.spacing(position)))
+            indices=np.clip(np.floor(position+tolerance).astype(np.int64),0,max(0,len(raw)-1));held[start:stop]=raw[indices]
+        check_cancel(cancel);values=frequency_filter(held,target_rate,spec,cancel,copy_input=False)
+    stats,levels=build_channel_cache(values,cancel)
+    return {'source':raw,'source_rate':source_rate,'rate':target_rate,'spec':spec,'values':values,'stats':stats,'levels':levels}
+
 
 def filter_description(spec):
     mode,lower,upper=spec
@@ -1313,15 +1329,16 @@ class TraceDock(tk.Tk):
       self._filter_upper_label.pack(side='left',before=self._filter_apply,padx=(4,3));self._filter_upper_entry.pack(side='left',before=self._filter_apply,padx=3)
     else:
       self._filter_upper_label.pack_forget();self._filter_upper_entry.pack_forget()
+ def _common_filter_rate(self):return max((float(d['channel_rates'][name]) for d in self.datasets for name in d['channels']),default=1.)
  def _filter_cache_ready(self,spec=None):
-    spec=self._active_filter if spec is None else spec
+    spec=self._active_filter if spec is None else spec;target_rate=self._common_filter_rate()
     for d in self.datasets:
       for name,raw in d['_base_channels'].items():
         cached=d.get('_smoothed',{}).get(name,{})
-        if cached.get('source') is not raw or cached.get('rate')!=d['channel_rates'][name] or cached.get('spec')!=spec:return False
+        if cached.get('source') is not raw or cached.get('source_rate')!=d['channel_rates'][name] or cached.get('rate')!=target_rate or cached.get('spec')!=spec:return False
     return True
  def _filter_status(self):
-    return f'Filtreli görünüm • {filter_description(self._active_filter)} • prob, istatistik ve CSV filtreli; ham kaynak korunur'
+    return f'Filtreli görünüm • {filter_description(self._active_filter)} • ortak {self._common_filter_rate():g} Hz • örnek tekrarı • ham kaynak korunur'
  def _redraw_filter_view(self):
     # Filtering can remove a large DC offset; keep X zoom, but recompute Y ranges.
     self._reset_axis_slots.update(Y_AXIS_LABELS);self.coords.set('Süre = —');self.redraw_all(preserve_view=True)
@@ -1346,23 +1363,21 @@ class TraceDock(tk.Tk):
       messagebox.showerror('Filtre frekansları','Pozitif, sonlu frekanslar girin (ör. 12,5). Band pass için alt sınır üst sınırdan küçük olmalı.',parent=self);return
     spec=(mode,lower,upper);highest=upper if upper is not None else lower
     channels=[(d,name,raw,float(d['channel_rates'][name])) for d in self.datasets for name,raw in d['_base_channels'].items()]
-    invalid=[(d,name,rate) for d,name,raw,rate in channels if not math.isfinite(rate) or highest>=rate/2]
-    if invalid:
-      d,name,rate=min(invalid,key=lambda item:item[2])
-      messagebox.showerror('Filtre frekansları',f"{d['name']} / {name}: örnekleme hızı {rate:g} Hz.\nKesim frekansları {rate/2:g} Hz değerinden küçük olmalı. Kaynakların hızları değiştirilmez.",parent=self);return
+    target_rate=self._common_filter_rate()
+    if not math.isfinite(target_rate) or target_rate<=0 or highest>=target_rate/2:
+      messagebox.showerror('Filtre frekansları',f'Ortak örnekleme hızı {target_rate:g} Hz. Kesim frekansları {target_rate/2:g} Hz değerinden küçük olmalı.',parent=self);return
     if self._filter_cache_ready(spec):
       self._active_filter=spec;self.filtered_view.set(True);self._redraw_filter_view();self.status.set(self._filter_status());return
     pending=[]
     for d,name,raw,rate in channels:
       cached=d.get('_smoothed',{}).get(name,{})
-      if cached.get('source') is not raw or cached.get('rate')!=rate or cached.get('spec')!=spec:pending.append((raw,rate))
+      if cached.get('source') is not raw or cached.get('source_rate')!=rate or cached.get('rate')!=target_rate or cached.get('spec')!=spec:pending.append((raw,rate))
     def work(progress,cancel):
       prepared={}
       for i,(raw,rate) in enumerate(pending):
         check_cancel(cancel);key=(id(raw),rate)
         if key not in prepared:
-          values=frequency_filter(raw,rate,spec,cancel);stats,levels=build_channel_cache(values,cancel)
-          prepared[key]={'source':raw,'rate':rate,'spec':spec,'values':values,'stats':stats,'levels':levels}
+          prepared[key]=common_filter_cache(raw,rate,target_rate,spec,cancel)
         progress((i+1)/len(pending),f'{i+1}/{len(pending)} kanal hazırlandı')
       return prepared
     def complete(prepared):
@@ -1761,12 +1776,12 @@ class TraceDock(tk.Tk):
         selected_column+=1
         key=('clip:'+clip['uid'],name);channel_track=('selected',selected_column) if policy=='Seçili kanal sırasına göre' else name if policy=='Kanal adına göre' else column if policy=='Sütun sırasına göre' else key;track=(row_uid,channel_track)
         if track not in tracks and len(tracks)>=limit:continue
-        base=d['_base_channels'][name];levels=d['_envelopes'][name];stats=d['_base_stats'][name];suffix=''
+        base=d['_base_channels'][name];levels=d['_envelopes'][name];stats=d['_base_stats'][name];suffix='';display_rate=d['channel_rates'][name]
         if self.filtered_view.get():
-          cached=d['_smoothed'][name];base=cached['values'];levels=cached['levels'];stats=cached['stats'];factor=float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1));y=base if factor==1 else ScaledValues(base,factor);suffix=f' [filtreli: {filter_description(self._active_filter)}]'
+          cached=d['_smoothed'][name];display_rate=cached['rate'];base=cached['values'];levels=cached['levels'];stats=cached['stats'];factor=float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1));y=base if factor==1 else ScaledValues(base,factor);suffix=f' [filtreli: {filter_description(self._active_filter)}]'
         unit=str(clip.get('unit_override',d.get('units',{}).get(name,''))).strip();suffix=((' ['+unit+']') if unit else '')+suffix
-        tracks.add(track);clock=SampleTimeAxis(len(y),d['channel_rates'][name],origin=start);channel_label=f'Seçili kanal {selected_column} / {name}' if policy=='Seçili kanal sırasına göre' else f'Sütun {column+1} / {name}' if policy=='Sütun sırasına göre' else name if policy=='Kanal adına göre' else f"{d['name']} / {name} [Paket {ci+1}]"
-        series.append({'key':key,'name':name,'dataset':d,'unit':unit,'label':f"{row['name']} / {d['name']} / {name} [Paket {ci+1}]"+suffix,'x':clock,'time':clock,'y':y,'base_values':base,'envelopes':levels,'stats':stats,'track':track,'track_label':f"{row['name']} / {channel_label}"+suffix,'row_uid':row_uid,'clip_index':ci,'channel_index':selected_column,'filter_spec':self._active_filter if self.filtered_view.get() else None,'clip_start':start,'clip_end':end})
+        tracks.add(track);clock=SampleTimeAxis(len(y),display_rate,origin=start);channel_label=f'Seçili kanal {selected_column} / {name}' if policy=='Seçili kanal sırasına göre' else f'Sütun {column+1} / {name}' if policy=='Sütun sırasına göre' else name if policy=='Kanal adına göre' else f"{d['name']} / {name} [Paket {ci+1}]"
+        series.append({'key':key,'name':name,'dataset':d,'unit':unit,'label':f"{row['name']} / {d['name']} / {name} [Paket {ci+1}]"+suffix,'x':clock,'time':clock,'y':y,'base_values':base,'envelopes':levels,'stats':stats,'track':track,'track_label':f"{row['name']} / {channel_label}"+suffix,'row_uid':row_uid,'clip_index':ci,'channel_index':selected_column,'filter_spec':self._active_filter if self.filtered_view.get() else None,'clip_start':start,'clip_end':end,'sample_end':start+len(d['_base_channels'][name])/d['channel_rates'][name]})
     return series
  def _axis_slot(self,entry):
     return self._track_axes.setdefault(entry['track'],self._channel_axes.get((entry['dataset']['uid'],entry['name']),'L1'))
@@ -1942,11 +1957,11 @@ class TraceDock(tk.Tk):
         row_legends[row_uid][2].append(track)
       previous=previous_tracks.get(track)
       if previous is not None and previous['clip_index']==entry['clip_index']-1:
-        px=previous['x'];py=previous['y'];rate=previous['dataset']['channel_rates'][previous['name']]
-        if len(px) and len(x) and math.isclose(float(px[-1])+1/rate,entry['clip_start'],rel_tol=1e-10,abs_tol=1e-9) and np.isfinite(py[-1]) and np.isfinite(y[0]):axis.plot([px[-1],x[0]],[py[-1],y[0]],color=color,lw=1.15,label='_nolegend_')
+        px=previous['x'];py=previous['y'];rate=previous['x'].rate
+        if len(px) and len(x) and math.isclose(previous.get('sample_end',float(px[-1])+1/rate),entry['clip_start'],rel_tol=1e-10,abs_tol=1e-9) and np.isfinite(py[-1]) and np.isfinite(y[0]):axis.plot([px[-1],x[0]],[py[-1],y[0]],color=color,lw=1.15,label='_nolegend_')
       previous_tracks[track]=entry
       for probe_no,probe in enumerate(self.probes.get(key,[]),1):
-        index=probe['index']
+        index=self._probe_sample_index(probe,entry)
         if index>=len(x) or not np.isfinite(x[index]) or not np.isfinite(y[index]):continue
         axis.plot([x[index]],[y[index]],marker='o',ms=8,markerfacecolor='none',markeredgecolor=color,mew=1.5,zorder=9)
         if probe['label']:axis.annotate(f"P{probe_no}  X: {elapsed_text(x[index])}\nY: {self._number(y[index])}",(x[index],y[index]),xytext=(8,10),textcoords='offset points',color='#203449',fontsize=8,fontweight='bold',bbox=dict(boxstyle='round,pad=.3',facecolor='#eef5fa',edgecolor=color,alpha=.96),zorder=10)
@@ -2010,7 +2025,7 @@ class TraceDock(tk.Tk):
         position=int(np.searchsorted(starts,seconds,side='right'))-1
         entry=entries[position] if position>=0 else entries[0];value=None
         if position>=0:
-          clock=entry['x'];end=float(clock[0])+len(clock)/clock.rate
+          clock=entry['x'];end=entry.get('sample_end',float(clock[0])+len(clock)/clock.rate)
           if seconds<end:
             index=clock.searchsorted(seconds,'right')-1
             if 0<=index<len(clock):value=entry['y'][index]
@@ -2108,8 +2123,13 @@ class TraceDock(tk.Tk):
     if best:
       n=best[1];items=self.probes.setdefault(n,[])
       if len(items)>=20:self.status.set(f'{self._key_label(n)} için en fazla 20 probe eklenebilir.');return
-      items.append({'index':best[2],'label':True});self.status.set(f'{self._key_label(n)} kanalına P{len(items)} probe eklendi');self.redraw(preserve_view=True);return
+      entry=self._series_map[n];position=best[2]/entry['x'].rate*entry['dataset']['channel_rates'][entry['name']];source_index=int(math.floor(position+max(1e-9,4*math.ulp(position))));source_index=min(source_index,len(entry['dataset']['channels'][entry['name']])-1)
+      items.append({'index':source_index,'sample_fraction':max(0.,min(.999999999999,position-source_index)),'label':True});self.status.set(f'{self._key_label(n)} kanalına P{len(items)} probe eklendi');self.redraw(preserve_view=True);return
     if self.span is not None:self.clear_span()
+ def _probe_sample_index(self,probe,entry):
+    source_rate=entry['dataset']['channel_rates'][entry['name']]
+    position=(probe['index']+probe.get('sample_fraction',0.))/source_rate*entry['x'].rate
+    return max(0,int(math.floor(position+max(1e-9,4*math.ulp(position)))))
  def _nearest_probe(self,e,threshold=13):
     if not self._in_graph(e):return None
     nearest=None;distance=threshold
@@ -2118,7 +2138,9 @@ class TraceDock(tk.Tk):
       if entry is None:continue
       x,y=entry[1],entry[2]
       for j,p in enumerate(items):
-        i=p['index'];axis=self._series_map[n]['axis'];px,py=axis.transData.transform((x[i],y[i]));dist=((px-e.x)**2+(py-e.y)**2)**.5
+        i=self._probe_sample_index(p,self._series_map[n]);
+        if i>=len(x):continue
+        axis=self._series_map[n]['axis'];px,py=axis.transData.transform((x[i],y[i]));dist=((px-e.x)**2+(py-e.y)**2)**.5
         if dist<distance:nearest=(n,j);distance=dist
     return nearest
  def _draw_guides(self):
@@ -2140,7 +2162,7 @@ class TraceDock(tk.Tk):
         factor=float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1));minimum,maximum=sorted((low*factor,high*factor))
         self.table.insert('','end',values=(entry['label'],self._fmt(first*factor),self._fmt(last*factor),self._fmt(minimum),self._fmt(maximum)))
       for j,probe in enumerate(self.probes.get(key,[]),1):
-        i=probe['index']
+        i=self._probe_sample_index(probe,entry)
         if i>=len(x):continue
         xvalue=elapsed_text(x[i]) if self.xcombo.get()=='Geçen süre' and np.isfinite(x[i]) else self._fmt(x[i]);self.probe_table.insert('','end',values=(entry['label'],f'P{j}',xvalue,self._fmt(y[i])))
 
@@ -2352,6 +2374,7 @@ class TraceDock(tk.Tk):
     for key,probes in state['probes'].items():
       if key[0] not in contexts or key[1] not in contexts[key[0]]['channels'] or len(probes)>20:raise ValueError('Geçersiz prob kaydı.')
       for p in probes:
+        if not 0<=finite(p.get('sample_fraction',0.))<1:raise ValueError('Geçersiz prob örnek konumu.')
         if not isinstance(p['index'],int) or not 0<=p['index']<len(contexts[key[0]]['channels'][key[1]]) or not isinstance(p['label'],bool):raise ValueError('Geçersiz prob konumu.')
     if state['match'] not in ('Seçili kanal sırasına göre','Kanal adına göre','Sütun sırasına göre','Ayrı çizgiler') or state['decimal'] not in ('.',',') or state['limit'] not in ('12','30','100','Tümü'):raise ValueError('Geçersiz proje görünümü.')
     for bounds in [state['xlim'],*state['ylim'].values()]+([state['span']] if state['span'] is not None else []):
@@ -2367,10 +2390,10 @@ class TraceDock(tk.Tk):
     if len(spec)!=3 or spec[0] not in ('Low pass','High pass','Band pass'):raise ValueError('Geçersiz proje filtresi.')
     if finite(spec[1])<=0 or (spec[0]=='Band pass' and (spec[2] is None or finite(spec[2])<=finite(spec[1]))):raise ValueError('Geçersiz proje filtre frekansı.')
     if state['filtered']:
+      target_rate=max((float(d['channel_rates'][n]) for d in datasets for n in d['channels']),default=1.)
       for i,d in enumerate(datasets):
         for n,raw in d['_base_channels'].items():
-          values=frequency_filter(raw,d['channel_rates'][n],spec,cancel);stats,levels=build_channel_cache(values,cancel)
-          d.setdefault('_smoothed',{})[n]={'source':raw,'rate':d['channel_rates'][n],'spec':spec,'values':values,'stats':stats,'levels':levels}
+          d.setdefault('_smoothed',{})[n]=common_filter_cache(raw,d['channel_rates'][n],target_rate,spec,cancel)
         progress(.85+.15*(i+1)/max(1,len(datasets)),'Proje filtresi hazırlanıyor')
     check_cancel(cancel);return state,datasets
  def _apply_project(self,path,result):
