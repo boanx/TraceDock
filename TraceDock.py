@@ -33,7 +33,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.42'
+APP_VERSION='1.0.43'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -347,6 +347,17 @@ def parse_text_file(path,progress=None,cancel=None,kind='csv',pool=None,plan=Non
     return d
 
 
+def detect_data_format(path):
+    """Choose the reader from binary signatures; CSV and Exlab text share a parser."""
+    suffix=Path(path).suffix.casefold()
+    with open(path,'rb') as source:header=source.read(8)
+    if header[:4]==b'TDSh' or suffix=='.tdms_index':raise ValueError('TDMS indeks dosyası ölçüm verisini içermez. Aynı adlı .tdms dosyasını seçin.')
+    if suffix=='.tdoc':raise ValueError('TDOC bir proje dosyasıdır. Proje aç düğmesini kullanın.')
+    if header[:4]==b'TDSm' or suffix=='.tdms':return 'tdms'
+    if int.from_bytes(header[:4],'little')==20100225 or suffix=='.tdmbin':return 'tdmbin'
+    return 'text'
+
+
 def parse_exlab(path,progress=None,cancel=None):return parse_text_file(path,progress,cancel,'csv')
 def parse_strain(path,progress=None,cancel=None,pool=None,plan=None):
     if Path(path).suffix.casefold()=='.tdmbin':
@@ -649,7 +660,7 @@ class TraceDock(tk.Tk):
     self._sidebar_rail.bind('<Return>',lambda e:self._toggle_sidebar_panel())
     self._sidebar_rail.bind('<space>',lambda e:self._toggle_sidebar_panel())
     projects=ResponsiveButtonBar(left,bg='#f4f8fb');projects.pack(fill='x',padx=10,pady=(0,6))
-    for label,command in [('Proje aç',self.open_project),('Projeyi kaydet',self.save_project)]:
+    for label,command in [('Proje aç',self.open_project),('Projeyi kaydet',self.save_project),('Veri paketi ekle',self.add_data_packets)]:
       button=self._button(projects,label,command);button.configure(padx=7,pady=5);projects.add(button)
     menubar=tk.Menu(self);project_menu=tk.Menu(menubar,tearoff=False)
     project_menu.add_command(label='Yeni proje',accelerator='Ctrl+N',command=self.new_project_tab)
@@ -662,7 +673,7 @@ class TraceDock(tk.Tk):
     self.bind('<Control-n>',lambda e:(self.new_project_tab(),'break')[1]);self.bind('<Control-w>',lambda e:(self.close_project_tab(),'break')[1]);self.bind('<Control-Tab>',lambda e:self._cycle_project_tab(1));self.bind('<Control-Shift-Tab>',lambda e:self._cycle_project_tab(-1))
     self.bind('<Control-o>',lambda e:(self.open_project(),'break')[1]);self.bind('<Control-s>',lambda e:(self.save_project(),'break')[1]);self.bind('<Control-Shift-S>',lambda e:(self.save_project(save_as=True),'break')[1])
     file_actions=ResponsiveButtonBar(left,bg='#f4f8fb');file_actions.pack(fill='x',padx=10)
-    for label,command in [('Exlab dosyası ekle',self.add_strain),('CSV ekle',self.add_csv),('TDMS ekle',self.add_tdms),('Kaldır',self.remove_file)]:
+    for label,command in [('Kaldır',self.remove_file)]:
       button=self._button(file_actions,label,command);button.configure(padx=7,pady=5);file_actions.add(button)
     file_frame=tk.Frame(left,bg='#f4f8fb');file_frame.pack(fill='x',padx=10,pady=8);file_frame.columnconfigure(0,weight=1);self.filelist=tk.Listbox(file_frame,exportselection=False,bg='#ffffff',fg='#203449',selectbackground='#d7efee',selectforeground='#203449',relief='flat',height=1,highlightthickness=0); self.filelist.grid(row=0,column=0,sticky='ew');file_h=AutoScrollbar(file_frame,orient='horizontal',command=self.filelist.xview);file_h.grid(row=1,column=0,sticky='ew');file_v=AutoScrollbar(file_frame,orient='vertical',command=self.filelist.yview);file_v.grid(row=0,column=1,sticky='ns');self.filelist.configure(xscrollcommand=file_h.set,yscrollcommand=file_v.set); self.filelist.bind('<<ListboxSelect>>',self.switch_file);self.filelist.bind('<Double-Button-1>',self.rename_dataset);self.filelist.bind('<Button-3>',self.edit_dataset_multiplier)
     self._panel_title(left,'KANALLAR • DOSYAYA GÖRE'); self.filter=tk.StringVar(); ent=ttk.Entry(left,textvariable=self.filter); ent.pack(fill='x',padx=10,pady=(0,5)); ent.insert(0,''); ent.bind('<KeyRelease>',lambda e:self.render_channels()); self.chlist=tk.Frame(left,bg='#f4f8fb',width=260,height=320);self.chlist.pack_propagate(False);self.chlist.grid_propagate(False); self.chlist.pack(fill='both',expand=True,padx=8,pady=(0,8));self._wrapped_label(left,text='Shift+tık: kanal aralığı • Ctrl+tık: çoklu seçim\nBoşluk / kutucuk: toplu aç-kapat • Çift tık: ad / Hz / süre / çarpan / birim',fg='#60758a',bg='#f4f8fb',justify='left',anchor='w').pack(fill='x',padx=10,pady=(0,8))
@@ -685,7 +696,7 @@ class TraceDock(tk.Tk):
     self._pack_measurement_table(self.table,stats_tab);pcols=('channel','probe','x','y');self.probe_table=AdaptiveTreeview(probe_tab,columns=pcols,show='headings',height=4)
     for c,l,w in zip(pcols,['Kanal','Probe','X','Değer Y'],[280,100,260,200]):self.probe_table.heading(c,text=l,command=lambda col=c:self.sort_tree(self.probe_table,col));self.probe_table.column(c,width=w,anchor='w' if c in ('channel','probe') else 'e')
     self._pack_measurement_table(self.probe_table,probe_tab)
-    self._build_timeline();self._body=self.workarea;self._job=None;self._closing=False;self._lod_after=None;self._background=None;self._motion_clock=0;self._pending_tdms=[]
+    self._build_timeline();self._body=self.workarea;self._job=None;self._closing=False;self._lod_after=None;self._background=None;self._motion_clock=0;self._pending_data_files=[]
     self._job_bar=tk.Frame(self,bg='#f4f8fb');self._job_progress=ttk.Progressbar(self._job_bar,maximum=100);self._job_progress.pack(side='left',fill='x',expand=True,padx=8,pady=4)
     self._job_cancel=self._button(self._job_bar,'İptal',self._cancel_job);self._job_cancel.pack(side='right',padx=8)
     self.canvas.mpl_connect('draw_event',self._on_canvas_draw);self.protocol('WM_DELETE_WINDOW',self._close_app);self._sidebar_bind_widgets(self.sidebar_content)
@@ -1272,7 +1283,7 @@ class TraceDock(tk.Tk):
       return
     self.after(30,self._poll_job)
  def _cancel_job(self):
-    self._pending_tdms=[]
+    self._pending_data_files=[]
     if self._job:self._job['cancel'].set();self._job_cancel.config(state='disabled');self.status.set('İptal ediliyor…')
  def _close_app(self):
     if hasattr(self,'_project_sessions') and len(self._project_sessions)>1:
@@ -1281,38 +1292,11 @@ class TraceDock(tk.Tk):
     self._closing=True
     if self._job:self._job['cancel'].set()
     self.destroy()
- def add_csv(self):self._add_text_files('csv')
- def add_strain(self):self._add_text_files('strain')
- def _add_text_files(self,kind):
-    if self._job is not None:return
-    title='Exlab dosyalarını seçin' if kind=='strain' else 'CSV dosyalarını seçin'
-    paths=filedialog.askopenfilenames(title=title,filetypes=[('Exlab dosyaları','*.tdmbin *.csv *.txt *.tsv *.asc'),('Exlab ikili veri','*.tdmbin'),('Tüm dosyalar','*.*')] if kind=='strain' else [('CSV','*.csv'),('Tüm dosyalar','*.*')])
+ def add_data_packets(self):
+    if self._job is not None or self._pending_data_files:self.status.set('Veri eklemek için devam eden işlemin bitmesini bekleyin');return
+    paths=filedialog.askopenfilenames(title='Veri paketlerini seçin',filetypes=[('Desteklenen veri dosyaları','*.csv *.tdms *.tdmbin *.txt *.tsv *.asc'),('CSV ve metin','*.csv *.txt *.tsv *.asc'),('NI TDMS','*.tdms'),('Exlab ikili veri','*.tdmbin'),('Tüm dosyalar','*.*')])
     if not paths:return
-    def work(progress,cancel):
-      datasets=[];errors=[];size=sum(os.path.getsize(path) for path in paths if Path(path).suffix.casefold()!='.tdmbin');plan=resource_plan(size);pool=new_process_pool(plan) if size>=32*2**20 and plan['workers']>1 else None
-      try:
-        for i,path in enumerate(paths):
-          check_cancel(cancel)
-          try:
-            reader_progress=lambda f,msg:progress((i+.7*f)/len(paths),Path(path).name+' • '+msg)
-            d=parse_strain(path,reader_progress,cancel,pool,plan) if kind=='strain' else parse_text_file(path,reader_progress,cancel,kind,pool,plan)
-            datasets.append(prepare_dataset(d,lambda f,msg:progress((i+.7+.3*f)/len(paths),Path(path).name+' • '+msg),cancel))
-          except Cancelled:raise
-          except Exception as exc:errors.append(f'{Path(path).name}: {exc}')
-      finally:
-        if pool:pool.shutdown(wait=True,cancel_futures=True)
-      return datasets,errors
-    def complete(result):
-      datasets,errors=result
-      for d in datasets:
-        self.datasets.append(d)
-        for name,info in d.get('_tracedock_channels',{}).items():self._channel_axes[(d['uid'],name)]=info['axis']
-      if datasets:self.active=len(self.datasets)-1;self.selected=set(datasets[-1]['_selected'])
-      self.redraw_all(preserve_view=True);self.status.set(f'{len(datasets)} dosya yüklendi • özgün veriler korundu')
-      if errors:messagebox.showerror('Okunamayan dosyalar','\n'.join(errors),parent=self)
-      warnings=[d['name']+': '+d['timing_warning'] for d in datasets if d.get('timing_warning')]
-      if warnings:messagebox.showinfo('Zaman bilgisi','\n'.join(warnings),parent=self)
-    self._start_job('Exlab yükleniyor' if kind=='strain' else 'CSV yükleniyor',work,complete)
+    self._pending_data_files=list(paths);self._next_data_file()
 
  def _refresh_values(self):
     for d in self.datasets:
@@ -1421,22 +1405,36 @@ class TraceDock(tk.Tk):
     win.deiconify();win.grab_set()
     self.wait_window(win)
     return result['settings']
- def add_tdms(self):
-    if self._job is not None:return
-    paths=filedialog.askopenfilenames(title='NI TDMS dosyalarını seçin',filetypes=[('NI TDMS','*.tdms'),('Tüm dosyalar','*.*')])
-    self._pending_tdms=list(paths);self._next_tdms()
- def _next_tdms(self):
-    if not self._pending_tdms:return
-    path=self._pending_tdms.pop(0)
+ def _next_data_file(self):
+    if not self._pending_data_files:return
+    path=self._pending_data_files.pop(0)
     def read(progress,cancel):
-      return stage_tdms(path,progress,lambda:check_cancel(cancel))
+      check_cancel(cancel);kind=detect_data_format(path)
+      if kind=='tdms':return 'tdms',stage_tdms(path,progress,lambda:check_cancel(cancel))
+      plan=resource_plan(os.path.getsize(path));pool=new_process_pool(plan) if kind=='text' and os.path.getsize(path)>=32*2**20 and plan['workers']>1 else None
+      try:
+        reader_progress=lambda f,msg:progress(.7*f,Path(path).name+' • '+msg)
+        if kind=='tdmbin':
+          d=read_tdmbin(path,reader_progress,lambda:check_cancel(cancel))
+          if d['x'] is None:d['x']=d['_base_x']=SampleTimeAxis(len(next(iter(d['channels'].values()))),d['grid_rate'])
+        else:d=parse_text_file(path,reader_progress,cancel,'csv',pool,plan)
+        return 'dataset',prepare_dataset(d,lambda f,msg:progress(.7+.3*f,msg),cancel)
+      finally:
+        if pool:pool.shutdown(wait=True,cancel_futures=True)
     def loaded(result):
-      channels,cache=result
+      kind,payload=result
+      if kind=='dataset':
+        d=payload;self.datasets.append(d);self.active=len(self.datasets)-1;self.selected=set(d['_selected'])
+        for name,info in d.get('_tracedock_channels',{}).items():self._channel_axes[(d['uid'],name)]=info['axis']
+        self.redraw_all(preserve_view=True);self.status.set(Path(path).name+' eklendi • özgün veriler korundu')
+        if d.get('timing_warning'):messagebox.showinfo('Zaman bilgisi',d['timing_warning'],parent=self)
+        self.after_idle(self._next_data_file);return
+      channels,cache=payload
       try:settings=self._tdms_settings(channels)
       except BaseException:
         cache.cleanup();raise
       if settings is None:
-        cache.cleanup();self.after_idle(self._next_tdms);return
+        cache.cleanup();self.after_idle(self._next_data_file);return
       def prepare(progress,cancel):
         try:
           base={};units={};ids={};rates={};factors={}
@@ -1452,9 +1450,9 @@ class TraceDock(tk.Tk):
         finally:cache.cleanup()
       def complete(d):
         self.datasets.append(d);self.active=len(self.datasets)-1;self.selected=set(d['_selected']);self.redraw_all(preserve_view=True)
-        self.status.set(f'{Path(path).name} eklendi • {len(channels)} kanal • kanal Hz değerleri korundu');self.after_idle(self._next_tdms)
-      if not self._start_job('TDMS hazırlanıyor',prepare,complete,lambda msg:self.after_idle(self._next_tdms)):cache.cleanup()
-    self._start_job('TDMS okunuyor',read,loaded,lambda msg:self.after_idle(self._next_tdms))
+        self.status.set(f'{Path(path).name} eklendi • {len(channels)} kanal • kanal Hz değerleri korundu');self.after_idle(self._next_data_file)
+      if not self._start_job('TDMS hazırlanıyor',prepare,complete,lambda msg:self.after_idle(self._next_data_file)):cache.cleanup()
+    self._start_job('Veri paketi okunuyor',read,loaded,lambda msg:self.after_idle(self._next_data_file))
 
  def _elapsed(self,index,rate):
     ticks=(index*10_000+rate//2)//rate;total,frac=divmod(ticks,10_000);hours,rem=divmod(total,3600);minutes,seconds=divmod(rem,60);return f'{hours:02d}:{minutes:02d}:{seconds:02d}.{frac:04d}'
@@ -2238,12 +2236,12 @@ class TraceDock(tk.Tk):
     self._apply_project(path,(state,datasets));self._sync_project_tab_caption();return key
  def new_project_tab(self,capture=True):
     if not hasattr(self,'_project_sessions'):return
-    if self._job is not None:self.status.set('Yeni sekme için devam eden işlemin bitmesini bekleyin');return
+    if self._job is not None or self._pending_data_files:self.status.set('Yeni sekme için devam eden işlemin bitmesini bekleyin');return
     state=copy.deepcopy(self._tab_blank_state);row={'uid':uuid.uuid4().hex,'name':'Satır 1'};state['rows']=[row];state['row']=row['uid']
     key=self._add_project_tab(None,(state,[]),capture=capture);self.status.set(self._project_sessions[key]['name']+' açıldı')
  def _activate_project_tab(self,key,capture=True):
     if key not in self._project_sessions or key==self._active_project_tab:return
-    if self._job is not None:
+    if self._job is not None or self._pending_data_files:
       self._project_tabs.select(self._active_project_tab);self.status.set('İşlem tamamlanınca proje sekmesini değiştirebilirsiniz');return
     if capture:self._capture_project_tab()
     self._active_project_tab=key;self._project_tabs.select(key);session=self._project_sessions[key]
@@ -2257,7 +2255,7 @@ class TraceDock(tk.Tk):
     return 'break'
  def close_project_tab(self):
     if not hasattr(self,'_project_sessions'):return
-    if self._job is not None:self.status.set('Sekmeyi kapatmak için devam eden işlemin bitmesini bekleyin');return
+    if self._job is not None or self._pending_data_files:self.status.set('Sekmeyi kapatmak için devam eden işlemin bitmesini bekleyin');return
     if (self.datasets or self.timeline) and not messagebox.askyesno('Proje sekmesini kapat','Bu sekme kapatılsın mı? Kaydedilmemiş değişiklikler varsa kaybolur. Diğer sekmeler açık kalır.',parent=self):return
     key=self._active_project_tab;keys=list(self._project_tabs.tabs());index=keys.index(key);session=self._project_sessions.pop(key)
     self._active_project_tab=None;self._project_tabs.forget(key);session['frame'].destroy();keys=list(self._project_tabs.tabs())
@@ -2286,7 +2284,7 @@ class TraceDock(tk.Tk):
     state=json.loads(json.dumps(state,ensure_ascii=False,allow_nan=False,default=lambda value:value.item() if isinstance(value,np.generic) else list(value)))
     return {'format':'TraceDock-project','schema':1,'application_version':APP_VERSION,'arrays':list(arrays),'state':state},arrays
  def save_project(self,save_as=False):
-    if self._job is not None:self.status.set('Proje kaydı için devam eden işlemin bitmesini bekleyin');return
+    if self._job is not None or self._pending_data_files:self.status.set('Proje kaydı için devam eden işlemin bitmesini bekleyin');return
     path=None if save_as else self._project_path
     if not path:path=filedialog.asksaveasfilename(title='TraceDock projesini kaydet',defaultextension='.tdoc',initialfile=Path(self._project_path).name if self._project_path else 'calisma.tdoc',filetypes=[('TraceDock projesi','*.tdoc')])
     if not path:return
@@ -2384,7 +2382,7 @@ class TraceDock(tk.Tk):
       self.timeline_canvas.xview_moveto(state['timeline_x']);self.timeline_canvas.yview_moveto(state['timeline_y']);self._render_timeline();self.canvas.draw_idle()
     self.after_idle(restore_view);self._project_path=str(path) if path else None;self.coords.set('Süre = —');self._sync_project_tab_caption();self.status.set(('Proje açıldı • '+Path(path).name) if path else 'Yeni proje')
  def open_project(self,path=None):
-    if self._job is not None:self.status.set('Proje açmak için devam eden işlemin bitmesini bekleyin');return
+    if self._job is not None or self._pending_data_files:self.status.set('Proje açmak için devam eden işlemin bitmesini bekleyin');return
     if path is None:path=filedialog.askopenfilename(title='TraceDock projesini aç',filetypes=[('TraceDock projesi','*.tdoc')])
     if not path:return
     owner=self._project_path_owner(path)

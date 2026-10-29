@@ -357,3 +357,9 @@ Doğrulama: 96, 144, 192, 240 ve tekrar 96 DPI değerleriyle kutucuk/ok boyutlar
 ## Dosya içeriği açma/kapatma okunun çizimi (v1.0.42)
 Dosya/Kanal ağacında yerel temanın küçük kalan ok çizimi yerine DPIa göre yeniden çizilen özel açık/kapalı ok görselleri kullanılır. Okun kendisi ve tıklama alanı birlikte büyür; yalnızca simgenin çevresindeki boşluk büyütülmez. Çocuksuz kanallarda ok gösterilmez. Yerel tek tıkla aç/kapat ve klavye davranışları korunur.
 Doğrulama: %100, %150, %200, %250 ve tekrar %100 ölçekte 20/30/40/50/20 piksellik özel simge alanı, gerçek Treeview gösterge tıklama alanı, açma-kapatma ve kanal seçiminin korunması kontrol edildi.
+
+
+## Tek düğmeyle veri paketi ekleme (v1.0.43)
+Exlab dosyası ekle, CSV ekle ve TDMS ekle düğmeleri kaldırıldı. Projeyi kaydet düğmesinin hemen yanındaki Veri paketi ekle düğmesiyle CSV, TDMS, Exlab TDMBIN ve metin/TSV/ASC dosyaları tek seçim penceresinden eklenir. Dosya türü ikili imza ve uzantı ile otomatik belirlenir; CSV ve Exlab metinleri ortak tablo okuyucusunu kullanır.
+Farklı türde dosyalar aynı anda seçilebilir ve seçildikleri sırayla yüklenir. TDMS kanal Hz ve çarpan penceresi korunur. Bir dosya okunamazsa hata gösterilir ve sıradaki dosyaya geçilir; işlem iptal edilirse kalan kuyruk temizlenir. İçe aktarma kuyruğu tamamlanmadan proje sekmesi değiştirilemez. TDMS indeks dosyası yerine asıl .tdms dosyası seçilmelidir. TDOC dosyaları için Proje aç kullanılır.
+Doğrulama: tek düğmenin yeri/eski düğmelerin kaldırılması, karışık CSV/TDMS/TDMBIN/Exlab metin kuyruğu, birebir değerler, Hz ve birimler, ikili imzadan tür belirleme, işlem kuyruğunda sekme kilidi ve iptal edilen kuyruğun temizlenmesi kontrol edildi.
