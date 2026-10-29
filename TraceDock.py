@@ -33,7 +33,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.43'
+APP_VERSION='1.0.44'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -688,6 +688,7 @@ class TraceDock(tk.Tk):
     self._filter_entry=ttk.Entry(filter_controls,textvariable=self.filter_cutoff,width=8);self._filter_entry.pack(side='left',padx=3);self._filter_entry.bind('<Return>',lambda e:self._apply_filter_frequency())
     self._filter_upper_label=ttk.Label(filter_controls,text='Üst (Hz)');self._filter_upper_entry=ttk.Entry(filter_controls,textvariable=self.filter_upper,width=8);self._filter_upper_entry.bind('<Return>',lambda e:self._apply_filter_frequency())
     self._filter_apply=self._button(filter_controls,'Uygula',self._apply_filter_frequency);self._filter_apply.pack(side='left',padx=3)
+    self._filter_clear=self._button(filter_controls,'Uygulanan filtreleri kaldır',self._remove_filters);self._filter_clear.pack(side='left',padx=3)
 
     self.coords=tk.StringVar(value='Süre = —');bar3=self._control_row(toolbar,fill='x',pady=(3,0));self._button(bar3,'Y eksenleri',self._show_y_axes).pack(side='right',padx=(6,0));ttk.Checkbutton(bar3,text='Lejantı göster',variable=self.legend_visible,command=self._toggle_legend).pack(side='right',padx=(8,0));tk.Label(bar3,text='Sol tık: prob ekle/sil • Sağ tık: prob etiketi • Sol sürükle: aralık • Sağ sürükle: kaydır • Tekerlek / orta tuş: zoom',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=2)
     self.graph_panels=ResponsivePanedWindow(right,fraction=.73,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.graph_panels.pack(fill='both',expand=True,padx=10,pady=(0,8));plotbox=tk.Frame(self.graph_panels,bg='#f4f8fb');self.graph_panels.add(plotbox,minsize=120,stretch='always');readout_host=HorizontalScrollFrame(plotbox,bg='#f4f8fb');readout_host.pack(side='bottom',fill='x');readout=tk.Label(readout_host.content,textvariable=self.coords,fg='#405d75',bg='#f4f8fb',font=ui_font(self,8),anchor='w',justify='left',padx=6,pady=2);readout.pack(side='left');self.coords.trace_add('write',lambda *args:readout_host._schedule()); self.fig=Figure(figsize=(9,5),dpi=100,facecolor='#f4f8fb');self.ax=self.fig.add_subplot(111);self.ax.set_facecolor('#ffffff');self.fig.subplots_adjust(left=.07,right=.99,top=.98,bottom=.11);self.canvas=FigureCanvasTkAgg(self.fig,master=plotbox);self.canvas.get_tk_widget().pack(fill='both',expand=True);self.canvas.mpl_connect('motion_notify_event',self.on_motion);self.canvas.mpl_connect('button_press_event',self.on_press);self.canvas.mpl_connect('button_release_event',self.on_release);self.canvas.mpl_connect('scroll_event',self.on_scroll);self.canvas.mpl_connect('resize_event',self._on_graph_resize)
@@ -1274,7 +1275,7 @@ class TraceDock(tk.Tk):
       except queue.Empty:break
       if kind=='progress':self._job_progress['value']=payload[0]*100;self.status.set(job['title']+' • '+payload[1]);continue
       self._job=None;self._job_bar.pack_forget()
-      self._filter_toggle.configure(state='normal');self._filter_entry.configure(state='normal');self._filter_upper_entry.configure(state='normal');self._filter_kind.configure(state='readonly');self._filter_apply.configure(state='normal')
+      self._filter_toggle.configure(state='normal');self._filter_entry.configure(state='normal');self._filter_upper_entry.configure(state='normal');self._filter_kind.configure(state='readonly');self._filter_apply.configure(state='normal');self._filter_clear.configure(state='normal')
       if kind=='done':job['success'](payload)
       elif kind=='cancelled':self.status.set('İşlem iptal edildi')
       else:
@@ -1321,12 +1322,20 @@ class TraceDock(tk.Tk):
     return True
  def _filter_status(self):
     return f'Filtreli görünüm • {filter_description(self._active_filter)} • prob, istatistik ve CSV filtreli; ham kaynak korunur'
+ def _redraw_filter_view(self):
+    # Filtering can remove a large DC offset; keep X zoom, but recompute Y ranges.
+    self._reset_axis_slots.update(Y_AXIS_LABELS);self.coords.set('Süre = —');self.redraw_all(preserve_view=True)
+ def _remove_filters(self):
+    if self._job is not None or self._pending_data_files:self.status.set('Filtreleri kaldırmak için devam eden işlemin bitmesini bekleyin');return
+    self.filtered_view.set(False)
+    for d in self.datasets:d.pop('_smoothed',None)
+    self._redraw_filter_view();self.status.set('Uygulanan filtreler kaldırıldı • aktif proje ham görünümde • çarpanlar korunur')
  def _toggle_filtered_view(self):
     if not self.filtered_view.get():
-      self.redraw_all(preserve_view=True);self.status.set('Ham görünüm • grafik, prob, istatistik ve CSV ham değerleri kullanır');return
+      self._redraw_filter_view();self.status.set('Ham görünüm • grafik, prob, istatistik ve CSV ham değerleri kullanır');return
     self.filtered_view.set(False);self._apply_filter_frequency()
  def _apply_filter_frequency(self):
-    if self._job is not None:return
+    if self._job is not None or self._pending_data_files:return
     if not self.datasets:self.status.set('Filtre için önce bir veri dosyası ekleyin');return
     try:
       mode=self.filter_type.get();lower=float(self.filter_cutoff.get().strip().replace(',','.'))
@@ -1342,7 +1351,7 @@ class TraceDock(tk.Tk):
       d,name,rate=min(invalid,key=lambda item:item[2])
       messagebox.showerror('Filtre frekansları',f"{d['name']} / {name}: örnekleme hızı {rate:g} Hz.\nKesim frekansları {rate/2:g} Hz değerinden küçük olmalı. Kaynakların hızları değiştirilmez.",parent=self);return
     if self._filter_cache_ready(spec):
-      self._active_filter=spec;self.filtered_view.set(True);self.redraw_all(preserve_view=True);self.status.set(self._filter_status());return
+      self._active_filter=spec;self.filtered_view.set(True);self._redraw_filter_view();self.status.set(self._filter_status());return
     pending=[]
     for d,name,raw,rate in channels:
       cached=d.get('_smoothed',{}).get(name,{})
@@ -1363,8 +1372,8 @@ class TraceDock(tk.Tk):
           if key in prepared:d.setdefault('_smoothed',{})[name]=prepared[key]
       if not self._filter_cache_ready(spec):
         self.filtered_view.set(False);self.redraw_all(preserve_view=True);self.status.set('Veri listesi veya Hz değişti; filtreyi yeniden uygulayın.');return
-      self._active_filter=spec;self.filtered_view.set(True);self.redraw_all(preserve_view=True);self.status.set(self._filter_status())
-    self._filter_toggle.configure(state='disabled');self._filter_entry.configure(state='disabled');self._filter_upper_entry.configure(state='disabled');self._filter_kind.configure(state='disabled');self._filter_apply.configure(state='disabled')
+      self._active_filter=spec;self.filtered_view.set(True);self._redraw_filter_view();self.status.set(self._filter_status())
+    self._filter_toggle.configure(state='disabled');self._filter_entry.configure(state='disabled');self._filter_upper_entry.configure(state='disabled');self._filter_kind.configure(state='disabled');self._filter_apply.configure(state='disabled');self._filter_clear.configure(state='disabled')
     self._start_job('Filtre hazırlanıyor ('+filter_description(spec)+')',work,complete)
 
  def _tdms_settings(self,channels):
@@ -1407,6 +1416,7 @@ class TraceDock(tk.Tk):
     return result['settings']
  def _next_data_file(self):
     if not self._pending_data_files:return
+    if self._job is not None:self.after(50,self._next_data_file);return
     path=self._pending_data_files.pop(0)
     def read(progress,cancel):
       check_cancel(cancel);kind=detect_data_format(path)
