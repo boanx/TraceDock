@@ -33,7 +33,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.45'
+APP_VERSION='1.0.46'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -148,9 +148,9 @@ def export_grid_index(seconds,rate):
     return int(math.ceil(scaled-max(1e-9,4*math.ulp(scaled))))
 
 class HeldChannelValues(NumericView):
-    """Sample-and-hold at common CSV times; gaps remain zero, not held across."""
-    def __init__(self,clock,segments):
-        self.clock=clock;self.segments=segments
+    """Hold acquired samples; interpolate only gaps bounded by two packets."""
+    def __init__(self,clock,segments,gaps=()):
+        self.clock=clock;self.segments=segments;self.gaps=gaps
     def __len__(self):return len(self.clock)
     def __array__(self,dtype=None,copy=None):
         values=self[:]
@@ -166,6 +166,13 @@ class HeldChannelValues(NumericView):
             indices=np.where(indices<0,indices+len(self),indices).astype(np.int64)
         if np.any((indices<0)|(indices>=len(self))):raise IndexError('CSV sample index')
         result=np.zeros(indices.shape,dtype=float)
+        for first,stop,start,end,left,right in self.gaps:
+            mask=(indices>=first)&(indices<stop)
+            if not np.any(mask):continue
+            if not (math.isfinite(left) and math.isfinite(right)):
+                result[mask]=np.nan;continue
+            fraction=np.clip((indices[mask]/self.clock.rate-start)/(end-start),0.,1.)
+            result[mask]=(1.-fraction)*left+fraction*right
         for first,stop,start,rate,values in self.segments:
             mask=(indices>=first)&(indices<stop)
             if not np.any(mask):continue
@@ -178,23 +185,27 @@ class HeldChannelValues(NumericView):
         return float(result[0]) if scalar else result
 
 def channel_export_series(groups,duration,cancel=None):
-    """One shared maximum-Hz clock; all channel values use zero-order hold."""
+    """Shared maximum-Hz clock, held packet samples and linear interior gaps."""
     rates=[entry['x'].rate for group in groups for entry in group['segments'] if len(entry['x'])]
     if not rates:raise ValueError('Aktarılacak kanal örneği yok.')
     rate=max(rates)
     if not math.isfinite(rate) or rate<=0:raise ValueError('CSV örnekleme hızı geçersiz.')
     count=max(0,export_grid_index(duration,rate));clock=SampleTimeAxis(count,rate);prepared=[]
     for group in groups:
-        check_cancel(cancel);parts=[];cursor=None
+        check_cancel(cancel);parts=[];gaps=[];cursor=None;previous=None
         for entry in sorted((item for item in group['segments'] if len(item['x'])),key=lambda item:item['x'][0]):
             check_cancel(cancel);axis=entry['x'];start=float(axis[0]);end=entry.get('sample_end',start+len(axis)/axis.rate)
             tolerance=max(1e-9,4*max(math.ulp(start),math.ulp(cursor or 0.)))
             if cursor is not None and start<cursor-tolerance:
                 raise ValueError('Aynı kanalın paketleri zaman çizelgesinde çakışıyor: '+group['label'])
+            if previous is not None and start>cursor+tolerance:
+                gap_first=max(0,export_grid_index(cursor,rate));gap_stop=min(count,export_grid_index(start,rate))
+                if gap_stop>gap_first:
+                    gaps.append((gap_first,gap_stop,cursor,start,float(previous['y'][-1]),float(entry['y'][0])))
             first=max(0,export_grid_index(start,rate));stop=min(count,export_grid_index(end,rate))
             if stop>first:parts.append((first,stop,start,axis.rate,entry['y']))
-            cursor=end
-        prepared.append({'label':group['label'],'x':clock,'y':HeldChannelValues(clock,parts),'tracedock':group.get('tracedock',{})})
+            cursor=end;previous=entry
+        prepared.append({'label':group['label'],'x':clock,'y':HeldChannelValues(clock,parts,gaps),'tracedock':group.get('tracedock',{})})
     return prepared,rate
 
 def csv_roundtrip_metadata(channels,rate,elapsed=True):
@@ -220,7 +231,7 @@ def write_csv_export_record(path,groups,rate,lo,hi,count,cancel=None):
             if not len(axis):continue
             packets.append({'source_file':Path(d.get('path',d['name'])).name,'source_channel':name,'source_hz':d['channel_rates'][name],'sample_count':len(d['_base_channels'][name]),'processing_hz':axis.rate,'processed_sample_count':len(axis),'start_s':float(axis[0]),'end_exclusive_s':entry.get('sample_end',float(axis[0])+len(axis)/axis.rate),'unit':entry.get('unit',''),'multiplier':float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1)),'filtered':entry.get('filter_spec')})
         channels.append({'column':group['label'],**group.get('tracedock',{}),'packets':packets})
-    record={'application':APP_NAME,'version':APP_VERSION,'csv_file':Path(path).name,'csv_sha256':digest.hexdigest(),'export_hz':rate,'time_grid_origin_s':0.,'range_s':[lo,hi],'rows':count,'resampling':'zero_order_hold_previous_sample','gap_value':0,'numeric_time_column':'time_s','display_time_column':'time','channels':channels}
+    record={'application':APP_NAME,'version':APP_VERSION,'csv_file':Path(path).name,'csv_sha256':digest.hexdigest(),'export_hz':rate,'time_grid_origin_s':0.,'range_s':[lo,hi],'rows':count,'resampling':'zero_order_hold_previous_sample','gap_fill':{'method':'linear_between_packets','start_anchor':'previous_packet_end_exclusive','end_anchor':'next_packet_start','values':'exported_endpoint_values_after_multiplier_and_filter','nonfinite_endpoint':'missing','outside_packet_range':0},'numeric_time_column':'time_s','display_time_column':'time','channels':channels}
     temporary=None
     try:
         with tempfile.NamedTemporaryFile('w',encoding='utf-8',dir=str(Path(path).parent),prefix='.tracedock-info-',suffix='.tmp',delete=False) as output:
