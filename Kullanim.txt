@@ -369,3 +369,7 @@ Paketlerin içindeki örnek tekrarı yöntemi değişmez. Kanalın ilk paketinde
 
 
 v1.0.47 — CSV işlem kaydı alanları güncellendi.
+
+
+v1.0.48 — Kanal istatistikleri / Problar bölümünü daraltma
+Bölümün sağ üstündeki Daralt düğmesi tabloları gizleyip tek satırlık başlık bırakır. Grafik boşalan alanı kullanır. Genişlet düğmesi tabloları aynı içerik ve seçili sekmeyle geri getirir; bölme oranı korunur. Daraltılmış bölüm pencere boyutu değişse veya veri/filtre güncellense de tek satır kalır. Bu görünüm her proje sekmesinde ayrı tutulur ve TDOC ile kaydedilir. Eski projeler bölüm açık olarak yüklenir.

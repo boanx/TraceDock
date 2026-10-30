@@ -14,7 +14,7 @@ Depoyu klonladıktan sonra:
 
 ```powershell
 git -c gpg.ssh.allowedSignersFile=allowed_signers verify-commit HEAD
-git -c gpg.ssh.allowedSignersFile=allowed_signers verify-tag v1.0.47
+git -c gpg.ssh.allowedSignersFile=allowed_signers verify-tag v1.0.48
 ```
 
 ## EXE ayrık imzası

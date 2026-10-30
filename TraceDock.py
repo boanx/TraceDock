@@ -33,7 +33,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.47'
+APP_VERSION='1.0.48'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -719,7 +719,13 @@ class TraceDock(tk.Tk):
 
     self.coords=tk.StringVar(value='Süre = —');bar3=self._control_row(toolbar,fill='x',pady=(3,0));self._button(bar3,'Y eksenleri',self._show_y_axes).pack(side='right',padx=(6,0));ttk.Checkbutton(bar3,text='Lejantı göster',variable=self.legend_visible,command=self._toggle_legend).pack(side='right',padx=(8,0));tk.Label(bar3,text='Sol tık: prob ekle/sil • Sağ tık: prob etiketi • Sol sürükle: aralık • Sağ sürükle: kaydır • Tekerlek / orta tuş: zoom',fg='#60758a',bg='#f4f8fb').pack(side='left',padx=2)
     self.graph_panels=ResponsivePanedWindow(right,fraction=.73,orient='vertical',bg='#d9e4ed',sashwidth=6,bd=0);self.graph_panels.pack(fill='both',expand=True,padx=10,pady=(0,8));plotbox=tk.Frame(self.graph_panels,bg='#f4f8fb');self.graph_panels.add(plotbox,minsize=120,stretch='always');readout_host=HorizontalScrollFrame(plotbox,bg='#f4f8fb');readout_host.pack(side='bottom',fill='x');readout=tk.Label(readout_host.content,textvariable=self.coords,fg='#405d75',bg='#f4f8fb',font=ui_font(self,8),anchor='w',justify='left',padx=6,pady=2);readout.pack(side='left');self.coords.trace_add('write',lambda *args:readout_host._schedule()); self.fig=Figure(figsize=(9,5),dpi=100,facecolor='#f4f8fb');self.ax=self.fig.add_subplot(111);self.ax.set_facecolor('#ffffff');self.fig.subplots_adjust(left=.07,right=.99,top=.98,bottom=.11);self.canvas=FigureCanvasTkAgg(self.fig,master=plotbox);self.canvas.get_tk_widget().pack(fill='both',expand=True);self.canvas.mpl_connect('motion_notify_event',self.on_motion);self.canvas.mpl_connect('button_press_event',self.on_press);self.canvas.mpl_connect('button_release_event',self.on_release);self.canvas.mpl_connect('scroll_event',self.on_scroll);self.canvas.mpl_connect('resize_event',self._on_graph_resize)
-    measurements=tk.Frame(self.graph_panels,bg='#f4f8fb',height=170);measurements.pack_propagate(False);self.graph_panels.add(measurements,minsize=100,height=170,stretch='always');self.tables=ttk.Notebook(measurements);self.tables.pack(fill='both',expand=True,padx=4,pady=4);stats_tab=tk.Frame(self.tables,bg='#f4f8fb');probe_tab=tk.Frame(self.tables,bg='#f4f8fb');self.tables.add(stats_tab,text='Kanal istatistikleri');self.tables.add(probe_tab,text='Problar');cols=('channel','start','end','min','max');self.table=AdaptiveTreeview(stats_tab,columns=cols,show='headings',height=4);labels=['Kanal','Başlangıç','Bitiş','Minimum','Maksimum'];widths=[280,150,150,150,150]
+    measurements=tk.Frame(self.graph_panels,bg='#f4f8fb',height=170);measurements.pack_propagate(False);self._measurements_panel=measurements;self._measurements_collapsed=False;self.graph_panels.add(measurements,minsize=100,height=170,stretch='always')
+    self._measurements_header=tk.Frame(right,bg='#f4f8fb',highlightthickness=1,highlightbackground='#ffffff')
+    tk.Label(self._measurements_header,text='KANAL İSTATİSTİKLERİ • PROBLAR',fg='#007f85',bg='#f4f8fb',font=ui_font(self,8,'bold')).pack(side='left',padx=8,pady=1)
+    self._measurement_fold_button(self._measurements_header,'Genişlet ▾').pack(side='right',padx=8,pady=1)
+    foldrow=tk.Frame(measurements,bg='#f4f8fb');foldrow.pack(fill='x',padx=4)
+    self._measurement_fold_button(foldrow,'Daralt ▴').pack(side='right',padx=4,pady=1)
+    self.tables=ttk.Notebook(measurements);self.tables.pack(fill='both',expand=True,padx=4,pady=4);stats_tab=tk.Frame(self.tables,bg='#f4f8fb');probe_tab=tk.Frame(self.tables,bg='#f4f8fb');self.tables.add(stats_tab,text='Kanal istatistikleri');self.tables.add(probe_tab,text='Problar');cols=('channel','start','end','min','max');self.table=AdaptiveTreeview(stats_tab,columns=cols,show='headings',height=4);labels=['Kanal','Başlangıç','Bitiş','Minimum','Maksimum'];widths=[280,150,150,150,150]
     for c,l,w in zip(cols,labels,widths):self.table.heading(c,text=l,command=lambda col=c:self.sort_tree(self.table,col));self.table.column(c,width=w,anchor='w' if c=='channel' else 'e')
     self._pack_measurement_table(self.table,stats_tab);pcols=('channel','probe','x','y');self.probe_table=AdaptiveTreeview(probe_tab,columns=pcols,show='headings',height=4)
     for c,l,w in zip(pcols,['Kanal','Probe','X','Değer Y'],[280,100,260,200]):self.probe_table.heading(c,text=l,command=lambda col=c:self.sort_tree(self.probe_table,col));self.probe_table.column(c,width=w,anchor='w' if c in ('channel','probe') else 'e')
@@ -811,6 +817,19 @@ class TraceDock(tk.Tk):
  def _wrapped_label(self,parent,**options):
     options.setdefault('wraplength',420);options.setdefault('justify','left');options.setdefault('anchor','w')
     label=tk.Label(parent,**options);label.bind('<Configure>',lambda event:label.configure(wraplength=max(100,event.width-4)));return label
+ def _measurement_fold_button(self,parent,text):
+    return tk.Button(parent,text=text,command=self._toggle_measurements_panel,font=ui_font(self,8),bg='#f4f8fb',fg='#007f85',activebackground='#d7efee',activeforeground='#007f85',relief='flat',bd=0,highlightthickness=0,padx=6,pady=0,cursor='hand2')
+ def _toggle_measurements_panel(self):
+    self._measurements_collapsed=not self._measurements_collapsed
+    if self._measurements_collapsed:
+      self.graph_panels.forget(self._measurements_panel)
+      self.graph_panels.pack_configure(pady=(0,0))
+      self._measurements_header.pack(side='bottom',fill='x',padx=10,pady=(0,8),before=self.graph_panels)
+    else:
+      self._measurements_header.pack_forget();self.graph_panels.pack_configure(pady=(0,8))
+      self.graph_panels.add(self._measurements_panel,minsize=100,height=170,stretch='always')
+      self.after_idle(self.graph_panels.resize_panes)
+    self.canvas.draw_idle()
  def _toggle_timeline_panel(self):
     self._timeline_collapsed=not self._timeline_collapsed
     if self._timeline_collapsed:
@@ -2323,7 +2342,7 @@ class TraceDock(tk.Tk):
       item={k:d[k] for k in fields if k in d};item['selected']=list(d['_selected'])
       item['channels']={n:array_ref(v) for n,v in d['_base_channels'].items()}
       item['base_x']=axis_ref(d['_base_x']);item['clocks']={n:axis_ref(d['_channel_x'][n]) for n in d['channels']};item['rates']=dict(d['channel_rates']);datasets.append(item)
-    state={'datasets':datasets,'rows':self.timeline_rows,'clips':self.timeline,'row_number':self._timeline_row_number,'row':self.timeline_row,'clip':self.timeline_selected,'active':self.active,'channel_axes':list(self._channel_axes.items()),'track_axes':list(self._track_axes.items()),'colors':list(self._track_colors.items()),'probes':list(self.probes.items()),'match':self.timeline_match.get(),'snap':self.timeline_snap.get(),'legend':self.legend_visible.get(),'decimal':self.decimal.get(),'limit':self.limit.get(),'search':self.filter.get(),'filtered':self.filtered_view.get(),'filter':self._active_filter,'xlim':self.ax.get_xlim(),'ylim':{k:a.get_ylim() for k,a in self._y_axes.items()},'span':self.span,'timeline_fit':self._timeline_fit,'timeline_scale':self._timeline_scale,'timeline_x':self.timeline_canvas.xview()[0],'timeline_y':self.timeline_canvas.yview()[0],'timeline_collapsed':self._timeline_collapsed,'sidebar_collapsed':self._sidebar_collapsed,'body_fraction':self._sidebar_body.fraction,'graph_fraction':self.graph_panels.fraction,'work_fraction':self.workarea.fraction}
+    state={'datasets':datasets,'rows':self.timeline_rows,'clips':self.timeline,'row_number':self._timeline_row_number,'row':self.timeline_row,'clip':self.timeline_selected,'active':self.active,'channel_axes':list(self._channel_axes.items()),'track_axes':list(self._track_axes.items()),'colors':list(self._track_colors.items()),'probes':list(self.probes.items()),'match':self.timeline_match.get(),'snap':self.timeline_snap.get(),'legend':self.legend_visible.get(),'decimal':self.decimal.get(),'limit':self.limit.get(),'search':self.filter.get(),'filtered':self.filtered_view.get(),'filter':self._active_filter,'xlim':self.ax.get_xlim(),'ylim':{k:a.get_ylim() for k,a in self._y_axes.items()},'span':self.span,'timeline_fit':self._timeline_fit,'timeline_scale':self._timeline_scale,'timeline_x':self.timeline_canvas.xview()[0],'timeline_y':self.timeline_canvas.yview()[0],'timeline_collapsed':self._timeline_collapsed,'sidebar_collapsed':self._sidebar_collapsed,'measurements_collapsed':self._measurements_collapsed,'body_fraction':self._sidebar_body.fraction,'graph_fraction':self.graph_panels.fraction,'work_fraction':self.workarea.fraction}
     state=json.loads(json.dumps(state,ensure_ascii=False,allow_nan=False,default=lambda value:value.item() if isinstance(value,np.generic) else list(value)))
     return {'format':'TraceDock-project','schema':1,'application_version':APP_VERSION,'arrays':list(arrays),'state':state},arrays
  def save_project(self,save_as=False):
@@ -2394,7 +2413,8 @@ class TraceDock(tk.Tk):
       if not 0<=finite(state[key])<=1:raise ValueError('Geçersiz proje pencere düzeni.')
     if finite(state['timeline_scale'])<=0:raise ValueError('Geçersiz çizelge ölçeği.')
     if not isinstance(state['active'],int) or not isinstance(state['row_number'],int) or state['row_number']<1 or not isinstance(state['search'],str):raise ValueError('Geçersiz proje seçimi.')
-    for key in ('snap','legend','filtered','timeline_fit','timeline_collapsed','sidebar_collapsed'):
+    state.setdefault('measurements_collapsed',False)
+    for key in ('snap','legend','filtered','timeline_fit','timeline_collapsed','sidebar_collapsed','measurements_collapsed'):
       if not isinstance(state[key],bool):raise ValueError('Geçersiz proje görünüm seçeneği.')
     if not set(state['ylim'])<=Y_AXIS_LABELS.keys():raise ValueError('Geçersiz proje Y ekseni görünümü.')
     spec=tuple(state['filter'])
@@ -2421,6 +2441,7 @@ class TraceDock(tk.Tk):
       if slot in self._y_axes:self._y_axes[slot].set_ylim(*bounds)
     if self._timeline_collapsed!=state['timeline_collapsed']:self._toggle_timeline_panel()
     if self._sidebar_collapsed!=state['sidebar_collapsed']:self._toggle_sidebar_panel()
+    if self._measurements_collapsed!=state.get('measurements_collapsed',False):self._toggle_measurements_panel()
     def restore_view():
       if self._closing or generation!=self._project_view_generation:return
       self.timeline_canvas.xview_moveto(state['timeline_x']);self.timeline_canvas.yview_moveto(state['timeline_y']);self._render_timeline();self.canvas.draw_idle()
