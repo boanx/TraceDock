@@ -365,4 +365,7 @@ Doğrulama: 1/1000 Hz kanallarda yüksek kesim kabulü, tekrar edilen örnekler 
 
 CSV paket aralıkları — v1.0.46
 İki paket arasındaki boşluk artık 0 yerine doğrusal geçişle doldurulur. Geçiş, önceki paketin bitiş anındaki son değerinden sonraki paketin başlangıcındaki ilk değerine uzanır. Örneğin son değer 10, sonraki ilk değer 20 ve boşluk 5 saniye ise saniye başına artış 2 olur: boşluğun başında 10, 1 saniye sonra 12, 2 saniye sonra 14, sonraki paket başında 20. Hesap ortak CSV frekansının her örnek anında yapılır; çarpan/filtre uygulanmış uç değerler kullanılır.
-Paketlerin içindeki örnek tekrarı yöntemi değişmez. Kanalın ilk paketinden önce ve son paketinden sonra 0 yazılır; uç değer eksik/NaN/sonsuz ise boşluk da eksik bırakılır. Bitişik paketlerde geçiş eklenmez. Kaynak örnekler, grafik, zaman çizelgesi konumları ve paket süreleri değiştirilmez. Görünen grafik ve seçili aralık CSV aktarımları aynı yöntemi kullanır. CSV yanındaki metadata.json işlem kaydı doğrusal boşluk doldurmayı belirtir. Bu bölüm önceki sürümlerdeki paketler arası sıfır doldurma açıklamasının yerini alır.
+Paketlerin içindeki örnek tekrarı yöntemi değişmez. Kanalın ilk paketinden önce ve son paketinden sonra 0 yazılır; uç değer eksik/NaN/sonsuz ise boşluk da eksik bırakılır. Bitişik paketlerde geçiş eklenmez. Kaynak örnekler, grafik, zaman çizelgesi konumları ve paket süreleri değiştirilmez. Görünen grafik ve seçili aralık CSV aktarımları aynı yöntemi kullanır. Bu bölüm önceki sürümlerdeki paketler arası sıfır doldurma açıklamasının yerini alır.
+
+
+v1.0.47 — CSV işlem kaydı alanları güncellendi.

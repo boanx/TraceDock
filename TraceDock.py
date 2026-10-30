@@ -33,7 +33,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.46'
+APP_VERSION='1.0.47'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -231,7 +231,7 @@ def write_csv_export_record(path,groups,rate,lo,hi,count,cancel=None):
             if not len(axis):continue
             packets.append({'source_file':Path(d.get('path',d['name'])).name,'source_channel':name,'source_hz':d['channel_rates'][name],'sample_count':len(d['_base_channels'][name]),'processing_hz':axis.rate,'processed_sample_count':len(axis),'start_s':float(axis[0]),'end_exclusive_s':entry.get('sample_end',float(axis[0])+len(axis)/axis.rate),'unit':entry.get('unit',''),'multiplier':float(d.get('multipliers',{}).get(name,1))*float(d.get('data_multiplier',1)),'filtered':entry.get('filter_spec')})
         channels.append({'column':group['label'],**group.get('tracedock',{}),'packets':packets})
-    record={'application':APP_NAME,'version':APP_VERSION,'csv_file':Path(path).name,'csv_sha256':digest.hexdigest(),'export_hz':rate,'time_grid_origin_s':0.,'range_s':[lo,hi],'rows':count,'resampling':'zero_order_hold_previous_sample','gap_fill':{'method':'linear_between_packets','start_anchor':'previous_packet_end_exclusive','end_anchor':'next_packet_start','values':'exported_endpoint_values_after_multiplier_and_filter','nonfinite_endpoint':'missing','outside_packet_range':0},'numeric_time_column':'time_s','display_time_column':'time','channels':channels}
+    record={'application':APP_NAME,'version':APP_VERSION,'csv_file':Path(path).name,'csv_sha256':digest.hexdigest(),'export_hz':rate,'time_grid_origin_s':0.,'range_s':[lo,hi],'rows':count,'resampling':'zero_order_hold_previous_sample','numeric_time_column':'time_s','display_time_column':'time','channels':channels}
     temporary=None
     try:
         with tempfile.NamedTemporaryFile('w',encoding='utf-8',dir=str(Path(path).parent),prefix='.tracedock-info-',suffix='.tmp',delete=False) as output:
