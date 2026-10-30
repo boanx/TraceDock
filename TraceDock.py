@@ -33,7 +33,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.48'
+APP_VERSION='1.0.49'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -2176,7 +2176,7 @@ class TraceDock(tk.Tk):
  def _draw_guides(self):
     if self._guide_artists:return
     positions=np.linspace(0,1,120)
-    for kind,color,alpha,width,style in [(0,'#8eacbf',.32,.8,'-'),(1,'#afc6d6',.23,.6,'-'),(2,'#c2d3df',.16,.35,':')]:
+    for kind,color,alpha,width,style in [(0,'#8eacbf',.32,.8,'-'),(1,'#afc6d6',.28,.6,'-'),(2,'#c2d3df',.32,.5,':')]:
       values=[value for i,value in enumerate(positions) if (0 if i%10==0 else (1 if i%5==0 else 2))==kind]
       segments=[[(value,0),(value,1)] for value in values]+[[(0,value),(1,value)] for value in values]
       artist=LineCollection(segments,colors=color,alpha=alpha,linewidths=width,linestyles=style,transform=self.ax.transAxes,zorder=.15);self.ax.add_collection(artist,autolim=False);self._guide_artists.append(artist)
