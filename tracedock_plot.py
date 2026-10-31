@@ -50,12 +50,23 @@ class ProbeLabelLayout:
     def __init__(self, axes):
         self.axes = axes
         self.labels = []
+        self.markers = []
         self._key = None
 
     def arrange(self, renderer):
         bounds = self.axes.bbox
         points = [label.axes.transData.transform(label.xy) for label in self.labels]
-        key = (tuple(bounds.bounds), renderer.points_to_pixels(1),
+        markers = []
+        for marker in self.markers:
+            if not marker.get_visible():continue
+            x,y = marker.get_transform().transform(marker.get_xydata()[0])
+            radius = renderer.points_to_pixels((marker.get_markersize()+marker.get_markeredgewidth())/2+2)
+            if np.isfinite([x,y]).all() and x+radius>=bounds.x0 and x-radius<=bounds.x1 and y+radius>=bounds.y0 and y-radius<=bounds.y1:
+                markers.append((x,y,radius))
+        if not self.markers:
+            markers = [(x,y,renderer.points_to_pixels(6.75)) for x,y in points
+                       if np.isfinite([x,y]).all() and bounds.contains(x,y)]
+        key = (tuple(bounds.bounds), tuple(markers), renderer.points_to_pixels(1),
                tuple((tuple(point), label.get_text(), label.get_fontsize(), label.get_visible())
                      for label, point in zip(self.labels, points)))
         if key == self._key:
@@ -90,9 +101,12 @@ class ProbeLabelLayout:
                               max(0,min(cy+height,by+bh+gap)-max(cy,by-gap))
                               for bx,by,bw,bh in placed)
                 distance = (cx+width/2-x)**2+(cy+height/2-y)**2
-                score = (overlap,distance)
+                marker_overlap = sum(max(0,min(cx+width,mx+radius)-max(cx,mx-radius))*
+                                     max(0,min(cy+height,my+radius)-max(cy,my-radius))
+                                     for mx,my,radius in markers)
+                score = (marker_overlap,overlap,distance)
                 if best is None or score<best[0]:best=(score,cx,cy)
-                if overlap==0 and len(placed)==0:break
+                if marker_overlap==0 and overlap==0 and len(placed)==0:break
             _,cx,cy = best
             label.set_position(((cx-x-dx)/scale,(cy-y-dy)/scale))
             placed.append((cx,cy,width,height))
@@ -125,4 +139,7 @@ class ProbeLabelLayer(Artist):
             label.update_positions(renderer)
             if label.arrow_patch is not None:label.arrow_patch.draw(renderer)
         for label in visible:Text.draw(label,renderer)
+        # Keep rings readable even when the available plot area is crowded.
+        for marker in self.layout.markers:
+            if marker.get_visible():marker.draw(renderer)
         self.stale = False

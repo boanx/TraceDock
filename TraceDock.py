@@ -33,7 +33,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.50'
+APP_VERSION='1.0.51'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -1995,7 +1995,8 @@ class TraceDock(tk.Tk):
       for probe_no,probe in enumerate(self.probes.get(key,[]),1):
         index=self._probe_sample_index(probe,entry)
         if index>=len(x) or not np.isfinite(x[index]) or not np.isfinite(y[index]):continue
-        axis.plot([x[index]],[y[index]],marker='o',ms=8,markerfacecolor='none',markeredgecolor=color,mew=1.5,zorder=9)
+        ring,=axis.plot([x[index]],[y[index]],marker='o',ms=8,markerfacecolor='none',markeredgecolor=color,mew=1.5,zorder=9)
+        probe_layout.markers.append(ring)
         if probe['label']:
           annotation=ProbeAnnotation(probe_layout,f"P{probe_no}  X: {elapsed_text(x[index])}\nY: {self._number(y[index])}",(x[index],y[index]),xytext=(8,10),textcoords='offset points',ha='left',va='bottom',annotation_clip=True,color='#203449',fontsize=8,fontweight='bold',bbox=dict(boxstyle='round,pad=.3',facecolor='#eef5fa',edgecolor=color,alpha=.96),arrowprops=dict(arrowstyle='-',color=color,lw=.65),zorder=10)
           annotation.axes=axis;annotation.set_figure(self.fig)
