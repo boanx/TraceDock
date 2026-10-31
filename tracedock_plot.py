@@ -104,11 +104,12 @@ class ProbeLabelLayout:
                 marker_overlap = sum(max(0,min(cx+width,mx+radius)-max(cx,mx-radius))*
                                      max(0,min(cy+height,my+radius)-max(cy,my-radius))
                                      for mx,my,radius in markers)
-                score = (marker_overlap,overlap,distance)
+                edge_distance = max(cx-x,0,x-cx-width)**2+max(cy-y,0,y-cy-height)**2
+                score = (marker_overlap,overlap,edge_distance,distance)
                 if best is None or score<best[0]:best=(score,cx,cy)
-                if marker_overlap==0 and overlap==0 and len(placed)==0:break
             _,cx,cy = best
             label.set_position(((cx-x-dx)/scale,(cy-y-dy)/scale))
+            label.update_positions(renderer);label.update_bbox_position_size(renderer)
             placed.append((cx,cy,width,height))
 
 

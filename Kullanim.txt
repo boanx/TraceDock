@@ -386,3 +386,7 @@ Grafikte birbirine yakın prob etiketleri farklı yönlere yerleştirilir; grafi
 
 v1.0.51 — Prob halkalarının görünürlüğü
 Prob etiketleri yerleştirilirken tüm görünür halkaların çevresinde boşluk bırakılır; etiketi kapalı problar da hesaba katılır. Halkalar en üstte çizilerek yoğun görünümde de okunabilir tutulur. Yakınlaştırma, çoklu Y ekseni ve PNG aktarımında aynı yerleşim kullanılır.
+
+
+v1.0.52 — Uzaklaştırılmış görünümde prob etiketleri
+Etiket konumu prob halkasına en yakın uygun boşluğa göre seçilir. Bağlantı çizgilerinin eski etiket kutusuna göre kesilmesi giderildi; çizgi güncel kutuya uzanır. Halka ve etiket çakışma kontrolü korunur.
