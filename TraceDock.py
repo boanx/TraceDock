@@ -7,7 +7,7 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from tracedock_workers import resource_plan, inspect_text, parse_file_block, parse_records, format_export_block, number
 from tracedock_tdmbin import read_tdmbin
-from tracedock_plot import CachedLegend
+from tracedock_plot import CachedLegend, ProbeLabelLayout, ProbeAnnotation, ProbeLabelLayer
 from tracedock_timeline import ripple_positions, snap_packet_delta, interval_conflicts
 from numpy.lib.mixins import NDArrayOperatorsMixin
 from datetime import datetime
@@ -33,7 +33,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.49'
+APP_VERSION='1.0.50'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -1903,6 +1903,7 @@ class TraceDock(tk.Tk):
  def _configure_y_axes(self,series):
     for axis in list(self.fig.axes):
       if axis is not self.ax:axis.remove()
+    probe_layout=ProbeLabelLayout(self.ax)
     self._y_axes={'L1':self.ax};self._used_axis_slots={self._axis_slot(entry) for entry in series};self._layout_y_axes()
     for slot in Y_AXIS_LABELS:
       if slot=='L1' or slot not in self._used_axis_slots:continue
@@ -1969,6 +1970,7 @@ class TraceDock(tk.Tk):
     view=(self.ax.get_xlim(),{slot:axis.get_ylim() for slot,axis in self._y_axes.items()}) if preserve_view else None
     for axis in list(self.fig.axes):
       if axis is not self.ax:axis.remove()
+    probe_layout=ProbeLabelLayout(self.ax)
     self._background=None;self.ax.clear();self._guide_artists=[];self._line_data={};self._series_map={};self._legend_artist=None;self._legend_targets=[];self.ax.set_facecolor('#ffffff');self.ax.set_axisbelow(True);self.ax.tick_params(colors='#40596f')
     for spine in self.ax.spines.values():spine.set_color('#cbdbe7');spine.set_visible(True)
     self.ax.tick_params(axis='y',left=True,labelleft=True);series=self._plot_series();self._configure_y_axes(series);self._build_hover_index(series);elapsed=self.xcombo.get()=='Geçen süre';budget=max(256,min(4000,60000//max(1,len(series))))
@@ -1994,9 +1996,12 @@ class TraceDock(tk.Tk):
         index=self._probe_sample_index(probe,entry)
         if index>=len(x) or not np.isfinite(x[index]) or not np.isfinite(y[index]):continue
         axis.plot([x[index]],[y[index]],marker='o',ms=8,markerfacecolor='none',markeredgecolor=color,mew=1.5,zorder=9)
-        if probe['label']:axis.annotate(f"P{probe_no}  X: {elapsed_text(x[index])}\nY: {self._number(y[index])}",(x[index],y[index]),xytext=(8,10),textcoords='offset points',color='#203449',fontsize=8,fontweight='bold',bbox=dict(boxstyle='round,pad=.3',facecolor='#eef5fa',edgecolor=color,alpha=.96),zorder=10)
+        if probe['label']:
+          annotation=ProbeAnnotation(probe_layout,f"P{probe_no}  X: {elapsed_text(x[index])}\nY: {self._number(y[index])}",(x[index],y[index]),xytext=(8,10),textcoords='offset points',ha='left',va='bottom',annotation_clip=True,color='#203449',fontsize=8,fontweight='bold',bbox=dict(boxstyle='round,pad=.3',facecolor='#eef5fa',edgecolor=color,alpha=.96),arrowprops=dict(arrowstyle='-',color=color,lw=.65),zorder=10)
+          annotation.axes=axis;annotation.set_figure(self.fig)
     self.ax.set_xlabel('Geçen süre (HH:MM:SS.SSSS)' if elapsed else self.xcombo.get(),color='#526c82');self.ax.xaxis.set_major_formatter(FuncFormatter(lambda value,pos:elapsed_text(value) if elapsed else self._number(value)))
     self.span_artist=self.ax.axvspan(*self.span,color='#007f85',alpha=.16,zorder=0) if self.span else None;top_axis=list(self._y_axes.values())[-1];self._cursor_axis=top_axis
+    top_axis.add_artist(ProbeLabelLayer(probe_layout))
     legend=CachedLegend(top_axis,[item[0] for item in legend_entries],[item[1] for item in legend_entries],loc='upper left',facecolor='#f4f8fb',edgecolor='#cbdbe7',labelcolor='#203449',fontsize=8,ncol=2);top_axis.add_artist(legend);self._legend_artist=legend;legend.set_visible(self.legend_visible.get());self._legend_targets=[(artist,entry[2]) for artist,entry in zip(legend.get_texts(),legend_entries)]+[(artist,entry[2]) for artist,entry in zip(legend.legend_handles,legend_entries)]
     self.cursor_x=top_axis.axvline(0,color='#608ca1',lw=.8,ls='--',visible=False,animated=True);self.cursor_y=top_axis.axhline(0,color='#608ca1',lw=.8,ls='--',visible=False,animated=True)
     if self._timeline_active() and not view:self.ax.set_xlim(0,max(self._timeline_duration(),1e-9))
@@ -2262,16 +2267,18 @@ class TraceDock(tk.Tk):
       messagebox.showinfo('CSV dışa aktar','Önce grafikte sol tuşla sürükleyerek bir aralık seçin.');return
     self.export_graph_csv(self.span)
  def export_stats_csv(self):
-    items=self.table.get_children()
-    if not items:messagebox.showinfo('CSV dışa aktar','Dışa aktarılacak kanal istatistiği bulunmuyor.');return
+    items=self.table.get_children();probe_items=self.probe_table.get_children()
+    if not items and not probe_items:messagebox.showinfo('CSV dışa aktar','Dışa aktarılacak kanal istatistiği bulunmuyor.');return
     p=self._csv_options('Kanal istatistiklerini CSV olarak kaydet','tracedock-istatistikler-filtreli.csv' if self.filtered_view.get() else 'tracedock-istatistikler.csv')
     if not p:return
-    delimiter=';' if self.decimal.get()==',' else ',';headers=['Kanal','Başlangıç','Bitiş','Minimum','Maksimum']
+    delimiter=';' if self.decimal.get()==',' else ',';headers=['Kayıt türü','Kanal','Başlangıç','Bitiş','Minimum','Maksimum','Prob','X','Değer Y']
     try:
       with open(p,'w',encoding='utf-8-sig',newline='') as f:
         writer=csv.writer(f,delimiter=delimiter);writer.writerow(headers)
-        for item in items:writer.writerow(self.table.item(item,'values'))
-      self.status.set(f'{len(items)} kanal istatistiği dışa aktarıldı • {Path(p).name}')
+        for item in items:writer.writerow(['Kanal istatistiği',*self.table.item(item,'values'),'','',''])
+        for item in probe_items:
+          channel,probe,x,y=self.probe_table.item(item,'values');writer.writerow(['Prob',channel,'','','','',probe,x,y])
+      self.status.set(f'{len(items)} kanal istatistiği • {len(probe_items)} prob dışa aktarıldı • {Path(p).name}')
     except Exception as exc:messagebox.showerror('CSV dışa aktarılamadı',str(exc))
  def _tab_snapshot(self):
     manifest,_arrays=self._project_snapshot();state=manifest['state']

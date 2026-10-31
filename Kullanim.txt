@@ -377,3 +377,8 @@ Bölümün sağ üstündeki Daralt düğmesi tabloları gizleyip tek satırlık 
 
 v1.0.49 — Grafik kılavuz çizgileri
 En küçük noktalı kılavuz çizgilerinin opaklığı ve kalınlığı artırıldı. Ara çizgilerin kontrastı da kademeli görünümü koruyacak şekilde ayarlandı. Grafik ekranı ve PNG aktarımı aynı görünümü kullanır.
+
+
+v1.0.50 — Probları aktarma ve etiket yerleşimi
+Kanal istatistiklerini CSV’ye aktar düğmesi artık prob kayıtlarını da aynı CSV’ye ekler. Kayıt türü sütunu kanal istatistiği ve prob satırlarını ayırır. Prob satırlarında kanal adı, prob numarası, X ve Y değeri bulunur. Mevcut ondalık/ayraç tercihi kullanılır.
+Grafikte birbirine yakın prob etiketleri farklı yönlere yerleştirilir; grafik kenarında etiketler içeri alınır. Bağlantı çizgileri kutuların arkasında çizilir. Yakınlaştırma, kaydırma, pencere boyutu ve PNG çözünürlüğü değiştiğinde yerleşim yeniden hesaplanır; geometri değişmediğinde konumlar yeniden kullanılır.
