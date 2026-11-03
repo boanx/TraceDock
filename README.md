@@ -406,3 +406,7 @@ Prob etiketleri yerleştirilirken tüm görünür halkaların çevresinde boşlu
 
 v1.0.52 — Uzaklaştırılmış görünümde prob etiketleri
 Etiket konumu prob halkasına en yakın uygun boşluğa göre seçilir. Bağlantı çizgilerinin eski etiket kutusuna göre kesilmesi giderildi; çizgi güncel kutuya uzanır. Halka ve etiket çakışma kontrolü korunur.
+
+
+v1.0.53 — Açılış
+Tek dosyalı EXE, ana pencere hazırlanırken Yükleniyor ekranını gösterir. Paket gereksiz çizim arka uçlarını taşımaz. Filtreleme ve TDMS okuma bileşenleri ilk kullanımlarında yüklenir.

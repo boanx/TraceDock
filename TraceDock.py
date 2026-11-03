@@ -1,7 +1,17 @@
 import multiprocessing
+import sys
 if __name__=='__main__':multiprocessing.freeze_support()
+
+def close_startup_screen():
+    if getattr(sys, 'frozen', False):
+        try:
+            import pyi_splash
+            pyi_splash.close()
+        except (ImportError, RuntimeError):
+            pass
+
 import copy
-import csv, json, math, os, sys, traceback, uuid, threading, queue, time, tempfile, warnings, hashlib
+import csv, json, math, os, traceback, uuid, threading, queue, time, tempfile, warnings, hashlib
 from array import array
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
@@ -19,9 +29,7 @@ from tkinter import ttk, filedialog, colorchooser
 from tracedock_theme import GlassButton, GlassMessages as messagebox, GlassInputs as simpledialog, apply_native_glass, rounded_rect
 from tracedock_layout import AdaptiveCombobox, AdaptiveTreeview, AutoScrollbar, ResponsivePanedWindow, HorizontalScrollFrame, ResponsiveButtonBar, size_dialog
 import numpy as np
-from scipy.signal import butter, sosfiltfilt
 from PIL import Image, ImageTk, ImageDraw
-from tracedock_tdms import stage_tdms
 from tracedock_project import save_project as write_tdoc, load_project as read_tdoc, freeze as project_key
 import matplotlib
 matplotlib.use('TkAgg')
@@ -33,7 +41,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.52'
+APP_VERSION='1.0.53'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -431,6 +439,7 @@ def frequency_filter(values,rate,spec,cancel=None,copy_input=True):
     else:
         critical=rate/np.pi*np.arctan(warped/factor if mode=='Low pass' else warped*factor)
         kind='lowpass' if mode=='Low pass' else 'highpass'
+    from scipy.signal import butter, sosfiltfilt
     sos=butter(4,critical,btype=kind,fs=rate,output='sos')
     result=np.array(values,dtype=float,copy=True) if copy_input else np.asarray(values,dtype=float)
     finite=np.isfinite(result)
@@ -1465,7 +1474,9 @@ class TraceDock(tk.Tk):
     path=self._pending_data_files.pop(0)
     def read(progress,cancel):
       check_cancel(cancel);kind=detect_data_format(path)
-      if kind=='tdms':return 'tdms',stage_tdms(path,progress,lambda:check_cancel(cancel))
+      if kind=='tdms':
+        from tracedock_tdms import stage_tdms
+        return 'tdms',stage_tdms(path,progress,lambda:check_cancel(cancel))
       plan=resource_plan(os.path.getsize(path));pool=new_process_pool(plan) if kind=='text' and os.path.getsize(path)>=32*2**20 and plan['workers']>1 else None
       try:
         reader_progress=lambda f,msg:progress(.7*f,Path(path).name+' • '+msg)
@@ -2504,15 +2515,18 @@ def verify_runtime_workers(report_path,input_path):
 
 if __name__=='__main__':
  if len(sys.argv)==4 and sys.argv[1]=='--verify-workers':
+  close_startup_screen()
   try:verify_runtime_workers(sys.argv[2],sys.argv[3])
   except Exception:
    Path(sys.argv[2]).write_text(json.dumps({'status':'FAIL','error':traceback.format_exc()}),encoding='utf-8');sys.exit(1)
   sys.exit(0)
  try:
   app=TraceDock()
+  app.after_idle(close_startup_screen)
   if len(sys.argv)==2 and Path(sys.argv[1]).suffix.casefold()=='.tdoc':app.after(100,lambda:app.open_project(sys.argv[1]))
   app.mainloop()
  except Exception as exc:
+  close_startup_screen()
   try:messagebox.showerror('TraceDock hata',str(exc)+'\n\n'+traceback.format_exc())
   except Exception:pass
 
