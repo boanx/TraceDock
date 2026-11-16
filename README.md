@@ -410,3 +410,7 @@ Etiket konumu prob halkasına en yakın uygun boşluğa göre seçilir. Bağlant
 
 v1.0.53 — Açılış
 Tek dosyalı EXE, ana pencere hazırlanırken Yükleniyor ekranını gösterir. Paket gereksiz çizim arka uçlarını taşımaz. Filtreleme ve TDMS okuma bileşenleri ilk kullanımlarında yüklenir.
+
+
+v1.0.54 — Grafik görünümü ve alan hizası
+Probe temizle, X/Y yakınlaştırmasını korur. Kesim ve Üst Hz alanlarında DPI uyumlu yazı tipi ve ortalı metin kullanılır. Yeni projelerde varsayılan ondalık ayracı virgüldür; açılan projenin kayıtlı tercihi korunur.

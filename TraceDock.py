@@ -41,7 +41,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.53'
+APP_VERSION='1.0.54'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -713,7 +713,7 @@ class TraceDock(tk.Tk):
       button=self._button(file_actions,label,command);button.configure(padx=7,pady=5);file_actions.add(button)
     file_frame=tk.Frame(left,bg='#f4f8fb');file_frame.pack(fill='x',padx=10,pady=8);file_frame.columnconfigure(0,weight=1);self.filelist=tk.Listbox(file_frame,exportselection=False,bg='#ffffff',fg='#203449',selectbackground='#d7efee',selectforeground='#203449',relief='flat',height=1,highlightthickness=0); self.filelist.grid(row=0,column=0,sticky='ew');file_h=AutoScrollbar(file_frame,orient='horizontal',command=self.filelist.xview);file_h.grid(row=1,column=0,sticky='ew');file_v=AutoScrollbar(file_frame,orient='vertical',command=self.filelist.yview);file_v.grid(row=0,column=1,sticky='ns');self.filelist.configure(xscrollcommand=file_h.set,yscrollcommand=file_v.set); self.filelist.bind('<<ListboxSelect>>',self.switch_file);self.filelist.bind('<Double-Button-1>',self.rename_dataset);self.filelist.bind('<Button-3>',self.edit_dataset_multiplier)
     self._panel_title(left,'KANALLAR • DOSYAYA GÖRE'); self.filter=tk.StringVar(); ent=ttk.Entry(left,textvariable=self.filter); ent.pack(fill='x',padx=10,pady=(0,5)); ent.insert(0,''); ent.bind('<KeyRelease>',lambda e:self.render_channels()); self.chlist=tk.Frame(left,bg='#f4f8fb',width=260,height=320);self.chlist.pack_propagate(False);self.chlist.grid_propagate(False); self.chlist.pack(fill='both',expand=True,padx=8,pady=(0,8));self._wrapped_label(left,text='Shift+tık: kanal aralığı • Ctrl+tık: çoklu seçim\nBoşluk / kutucuk: toplu aç-kapat • Çift tık: ad / Hz / süre / çarpan / birim',fg='#60758a',bg='#f4f8fb',justify='left',anchor='w').pack(fill='x',padx=10,pady=(0,8))
-    toolbar=tk.Frame(right,bg='#f4f8fb');toolbar.pack(fill='x',padx=12,pady=(8,4));bar=self._control_row(toolbar,fill='x');tk.Label(bar,text='X ekseni',fg='#526c82',bg='#f4f8fb').pack(side='left');self.xcombo=AdaptiveCombobox(bar,state='readonly',width=16,values=[]);self.xcombo.pack(side='left',padx=(5,8));self.xcombo.bind('<<ComboboxSelected>>',lambda e:self.redraw());tk.Label(bar,text='Eğri',fg='#526c82',bg='#f4f8fb').pack(side='left');self.limit=AdaptiveCombobox(bar,state='readonly',width=6,values=['12','30','100','Tümü']);self.limit.set('Tümü');self.limit.pack(side='left',padx=4);self.limit.bind('<<ComboboxSelected>>',lambda e:self.redraw());tk.Label(bar,text='Ondalık',fg='#526c82',bg='#f4f8fb').pack(side='left',padx=(5,2));self.decimal=AdaptiveCombobox(bar,state='readonly',width=3,values=('.',','));self.decimal.set('.');self.decimal.pack(side='left');self.decimal.bind('<<ComboboxSelected>>',lambda e:(self.redraw(preserve_view=True) if self.datasets else None));self._button(bar,'Tümünü göster',self.reset_zoom).pack(side='left',padx=(9,2));self._button(bar,'Seçili aralığı temizle',self.clear_span).pack(side='left',padx=2);self._button(bar,'Probe temizle',self.clear_probes).pack(side='left',padx=2)
+    toolbar=tk.Frame(right,bg='#f4f8fb');toolbar.pack(fill='x',padx=12,pady=(8,4));bar=self._control_row(toolbar,fill='x');tk.Label(bar,text='X ekseni',fg='#526c82',bg='#f4f8fb').pack(side='left');self.xcombo=AdaptiveCombobox(bar,state='readonly',width=16,values=[]);self.xcombo.pack(side='left',padx=(5,8));self.xcombo.bind('<<ComboboxSelected>>',lambda e:self.redraw());tk.Label(bar,text='Eğri',fg='#526c82',bg='#f4f8fb').pack(side='left');self.limit=AdaptiveCombobox(bar,state='readonly',width=6,values=['12','30','100','Tümü']);self.limit.set('Tümü');self.limit.pack(side='left',padx=4);self.limit.bind('<<ComboboxSelected>>',lambda e:self.redraw());tk.Label(bar,text='Ondalık',fg='#526c82',bg='#f4f8fb').pack(side='left',padx=(5,2));self.decimal=AdaptiveCombobox(bar,state='readonly',width=3,values=('.',','));self.decimal.set(',');self.decimal.pack(side='left');self.decimal.bind('<<ComboboxSelected>>',lambda e:(self.redraw(preserve_view=True) if self.datasets else None));self._button(bar,'Tümünü göster',self.reset_zoom).pack(side='left',padx=(9,2));self._button(bar,'Seçili aralığı temizle',self.clear_span).pack(side='left',padx=2);self._button(bar,'Probe temizle',self.clear_probes).pack(side='left',padx=2)
     exports=self._control_row(toolbar,fill='x',pady=(4,0))
     for label,command in [("Görünen grafiği CSV'ye aktar",self.export_graph_csv),("Seçili aralığı CSV'ye aktar",self.export_span_csv),("Kanal istatistiklerini CSV'ye aktar",self.export_stats_csv),("Görünen grafiği PNG olarak dışarı aktar",self.export_graph_png)]:
       self._button(exports,label,command).pack(side='left',padx=(0,6))
@@ -721,8 +721,8 @@ class TraceDock(tk.Tk):
     self._filter_toggle=ttk.Checkbutton(filter_controls,text='Filtreli görünüm',variable=self.filtered_view,command=self._toggle_filtered_view);self._filter_toggle.pack(side='left',padx=(0,8))
     self._filter_kind=AdaptiveCombobox(filter_controls,textvariable=self.filter_type,state='readonly',width=10,values=['Low pass','High pass','Band pass']);self._filter_kind.pack(side='left',padx=3);self._filter_kind.bind('<<ComboboxSelected>>',self._update_filter_fields)
     self._filter_cutoff_label=ttk.Label(filter_controls,text='Kesim (Hz)');self._filter_cutoff_label.pack(side='left',padx=(4,3))
-    self._filter_entry=ttk.Entry(filter_controls,textvariable=self.filter_cutoff,width=8);self._filter_entry.pack(side='left',padx=3);self._filter_entry.bind('<Return>',lambda e:self._apply_filter_frequency())
-    self._filter_upper_label=ttk.Label(filter_controls,text='Üst (Hz)');self._filter_upper_entry=ttk.Entry(filter_controls,textvariable=self.filter_upper,width=8);self._filter_upper_entry.bind('<Return>',lambda e:self._apply_filter_frequency())
+    self._filter_entry=ttk.Entry(filter_controls,textvariable=self.filter_cutoff,width=8,font=ui_font(self,9),justify='center');self._filter_entry.pack(side='left',padx=3);self._filter_entry.bind('<Return>',lambda e:self._apply_filter_frequency())
+    self._filter_upper_label=ttk.Label(filter_controls,text='Üst (Hz)');self._filter_upper_entry=ttk.Entry(filter_controls,textvariable=self.filter_upper,width=8,font=ui_font(self,9),justify='center');self._filter_upper_entry.bind('<Return>',lambda e:self._apply_filter_frequency())
     self._filter_apply=self._button(filter_controls,'Uygula',self._apply_filter_frequency);self._filter_apply.pack(side='left',padx=3)
     self._filter_clear=self._button(filter_controls,'Uygulanan filtreleri kaldır',self._remove_filters);self._filter_clear.pack(side='left',padx=3)
 
@@ -2218,7 +2218,7 @@ class TraceDock(tk.Tk):
     value=f'{x:.10g}'
     return value.replace('.',',') if hasattr(self,'decimal') and self.decimal.get()==',' else value
  def _fmt(self,x):return self._number(x)
- def clear_probes(self):self.probes.clear();self.redraw()
+ def clear_probes(self):self.probes.clear();self.redraw(preserve_view=True)
  def clear_span(self):
     if self.span is None:return
     self.span=None
