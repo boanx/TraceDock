@@ -46,7 +46,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='2.0.0'
+APP_VERSION='2.0.1'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -2562,6 +2562,14 @@ def verify_runtime_workers(report_path,input_path):
     Path(report_path).write_text(json.dumps(report,indent=2),encoding='utf-8')
 
 if __name__=='__main__':
+ if len(sys.argv)==3 and sys.argv[1]=='--verify-updater':
+  close_startup_screen()
+  try:
+   from tracedock_update import latest
+   result={'status':'PASS','latest':latest(APP_VERSION)}
+  except Exception:result={'status':'FAIL','traceback':traceback.format_exc()}
+  Path(sys.argv[2]).write_text(json.dumps(result),encoding='utf8')
+  sys.exit(0 if result['status']=='PASS' else 1)
  if len(sys.argv)==4 and sys.argv[1]=='--verify-workers':
   close_startup_screen()
   try:verify_runtime_workers(sys.argv[2],sys.argv[3])

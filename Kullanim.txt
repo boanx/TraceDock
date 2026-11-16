@@ -402,3 +402,7 @@ Probe temizle, X/Y yakınlaştırmasını korur. Kesim ve Üst Hz alanlarında D
 
 TraceDock 2.0.0 — Otomatik güncelleme
 Açılışta GitHub boanx/TraceDock son kararlı sürümü arka planda kontrol edilir. Çevrimdışı kontrolde uygulama normal çalışır. Proje menüsündeki Güncellemeleri kontrol et elle kontrol sağlar. Kullanıcı onayıyla EXE ve imzası indirilir; sabit TraceDock açık anahtarıyla doğrulanır. Windows OpenSSH yoksa otomatik kurulum yapılmaz, elle indirme kullanılabilir. İndirme iptal edilebilir. Kurulum ayrıca onay ister: önce tüm proje sekmelerinizi kaydedin. Uygulama kapanır, eski EXE yedeklenir ve güncel sürüm başlatılır. Dosya değiştirme/başlatma hatasında eski EXE geri alınır. Kurulum klasörüne yazma izni gerekir. Bu mekanizma 2.0 ve sonrası için geçerlidir; eski sürümlerden 2.0 ilk kez elle indirilmelidir.
+
+
+v2.0.1 — Güncelleme kontrolü bağlantı düzeltmesi
+Paketlenmiş EXE için gereken TLS sertifika dosyası eklendi. Güncelleme kontrolünde görülen dosya bulunamadı hatası giderildi; HTTPS sertifika doğrulaması korunur.
