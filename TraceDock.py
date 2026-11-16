@@ -10,6 +10,11 @@ def close_startup_screen():
         except (ImportError, RuntimeError):
             pass
 
+if __name__=='__main__' and getattr(sys,'frozen',False) and len(sys.argv)==4 and sys.argv[1]=='--install-update':
+    close_startup_screen()
+    from tracedock_update import install
+    sys.exit(install(sys.argv[2],sys.argv[3]))
+
 import copy
 import csv, json, math, os, traceback, uuid, threading, queue, time, tempfile, warnings, hashlib
 from array import array
@@ -41,7 +46,7 @@ from matplotlib.ticker import FuncFormatter
 Y_AXIS_LABELS={'L1':'Sol 1','L2':'Sol 2','R1':'Sağ 1','R2':'Sağ 2'}
 Y_AXIS_COLORS={'L1':'#007f85','L2':'#3f7eb6','R1':'#7261c4','R2':'#c77a1a'}
 APP_NAME='TraceDock'
-APP_VERSION='1.0.54'
+APP_VERSION='2.0.0'
 __author__='Ahmet Yusuf Ozyurt'
 CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'TraceDock' / 'config.json'
 LEGACY_CONFIG_PATH=Path(os.getenv('APPDATA',str(Path.home()))) / 'StrainLab' / 'config.json'
@@ -705,6 +710,7 @@ class TraceDock(tk.Tk):
     project_menu.add_command(label='Proje aç…',accelerator='Ctrl+O',command=self.open_project)
     project_menu.add_command(label='Projeyi kaydet',accelerator='Ctrl+S',command=self.save_project)
     project_menu.add_command(label='Projeyi farklı kaydet…',accelerator='Ctrl+Shift+S',command=lambda:self.save_project(save_as=True))
+    project_menu.add_separator();project_menu.add_command(label='Güncellemeleri kontrol et',command=lambda:self.check_updates(True))
     menubar.add_cascade(label='Proje',menu=project_menu);self.configure(menu=menubar)
     self.bind('<Control-n>',lambda e:(self.new_project_tab(),'break')[1]);self.bind('<Control-w>',lambda e:(self.close_project_tab(),'break')[1]);self.bind('<Control-Tab>',lambda e:self._cycle_project_tab(1));self.bind('<Control-Shift-Tab>',lambda e:self._cycle_project_tab(-1))
     self.bind('<Control-o>',lambda e:(self.open_project(),'break')[1]);self.bind('<Control-s>',lambda e:(self.save_project(),'break')[1]);self.bind('<Control-Shift-S>',lambda e:(self.save_project(save_as=True),'break')[1])
@@ -1338,6 +1344,48 @@ class TraceDock(tk.Tk):
         if job['error']:job['error'](payload)
       return
     self.after(30,self._poll_job)
+ def check_updates(self,manual=False):
+    if getattr(self,'_update_checking',False):return
+    self._update_checking=True;events=queue.Queue()
+    def work():
+      try:
+        from tracedock_update import latest
+        events.put(('ok',latest(APP_VERSION)))
+      except Exception as exc:events.put(('error',str(exc)))
+    def poll():
+      if self._closing:return
+      try:kind,result=events.get_nowait()
+      except queue.Empty:self.after(150,poll);return
+      self._update_checking=False;self._offer_update(kind,result,manual)
+    threading.Thread(target=work,daemon=True,name='TraceDock-update-check').start();self.after(150,poll)
+ def _offer_update(self,kind,result,manual):
+    if self._closing:return
+    if self._job is not None or self._pending_data_files:self.after(1000,lambda:self._offer_update(kind,result,manual));return
+    if kind=='error':
+      if manual:messagebox.showinfo('Güncelleme kontrolü','Kontrol tamamlanamadı. İnternet bağlantısını kontrol edin.\n'+result,parent=self)
+      return
+    if result is None:
+      if manual:messagebox.showinfo('Güncelleme kontrolü','TraceDock '+APP_VERSION+' güncel.',parent=self)
+      return
+    if not getattr(sys,'frozen',False):
+      if manual:messagebox.showinfo('Güncelleme','Otomatik kurulum EXE sürümünde kullanılabilir.',parent=self)
+      return
+    if not messagebox.askyesno('TraceDock güncellemesi',result['version']+' hazır. İndirilip doğrulansın mı?',parent=self):return
+    from tracedock_update import download
+    self._start_job('Güncelleme indiriliyor',lambda progress,cancel:download(result,progress,lambda:check_cancel(cancel)),self._install_update)
+ def _install_update(self,directory):
+    has_data=bool(self.datasets or self.timeline) or any(session['datasets'] for session in self._project_sessions.values())
+    prompt='Güncelleme doğrulandı. TraceDock kapatılıp yeniden açılacak.'
+    if has_data:prompt+='\nAçık projelerinizi kaydettiğinizden emin olun. Kaydedilmemiş değişiklikler kaybolur.'
+    if not messagebox.askyesno('Güncellemeyi kur',prompt+'\nŞimdi kurulsun mu?',parent=self):
+      import shutil
+      shutil.rmtree(directory);return
+    try:
+      from tracedock_update import launch
+      launch(directory,sys.executable,os.getpid())
+    except Exception as exc:
+      messagebox.showerror('Güncelleme kurulamadı',str(exc),parent=self);return
+    self._closing=True;self.destroy()
  def _cancel_job(self):
     self._pending_data_files=[]
     if self._job:self._job['cancel'].set();self._job_cancel.config(state='disabled');self.status.set('İptal ediliyor…')
@@ -2523,6 +2571,7 @@ if __name__=='__main__':
  try:
   app=TraceDock()
   app.after_idle(close_startup_screen)
+  app.after(2500,app.check_updates)
   if len(sys.argv)==2 and Path(sys.argv[1]).suffix.casefold()=='.tdoc':app.after(100,lambda:app.open_project(sys.argv[1]))
   app.mainloop()
  except Exception as exc:
